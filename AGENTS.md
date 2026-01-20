@@ -313,10 +313,31 @@ The user has experienced:
 - blank city caused by `isoRenderer.js` syntax errors (braces/method nesting, duplicate const)
 - road markings that “don’t make sense”
 - graph view that is too chunky and aesthetically crude
+- graph canvas occasionally disappearing when nodes are dragged outside the modal bounds (likely modal click handling / canvas resize timing)
 
 Therefore:
 - prioritize correctness and stability before further polish
 - make changes incremental and verifiable with the test checklist
+
+---
+
+## 15) Recent Quirks / Lessons Learned
+
+### Graph modal disappearance
+- Dragging a node outside the modal bounds can close the modal or leave the modal open with an empty graph.
+- Likely causes: modal click-to-close handler firing on outside clicks; vis-network canvas size desync after pointer leaves modal; aggressive auto-fit/resize.
+- Mitigations currently in place:
+  - Stop propagation on the modal card (prevents accidental close).
+  - Keep-alive redraw + resize sync while modal is open (periodic `network.redraw()` and `network.setSize()` calls).
+  - Avoid auto-fit/auto-move calls that can push graph out of view.
+
+### Canvas layout shifts
+- Opening/closing modals can trigger `resize()` and shift the world if camera offsets are not preserved.
+- Current fix: `IsoRenderer.resize(preserveCamera=true)` keeps the camera aligned by adjusting offsets based on origin changes.
+
+### Building metadata
+- Building Details modal supports name/description/tasks; ensure a building is selected or a fallback is chosen.
+- Task UI writes directly to the building object; persistence beyond session still requires Save/Load.
 
 ---
 
