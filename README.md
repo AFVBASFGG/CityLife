@@ -66,7 +66,7 @@ If you want to use this project commercially, please contact the author to discu
 
 ### In-progress / needing polish
 
-- [ ] Relationship graph aesthetics (aim: Obsidian-like refinement)
+- [x] Relationship graph aesthetics (aim: Obsidian-like refinement)
 - [ ] Road markings/intersection visuals fully consistent with connectivity
 - [ ] Robust error boundary around renderer loop (prevent silent blank-screen failures)
 
