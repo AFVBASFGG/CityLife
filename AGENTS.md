@@ -15,7 +15,7 @@ It contains:
 
 ## 0) Prime Directive
 
-Do not “rewrite everything.” This project is intentionally lightweight: plain HTML/CSS + ES modules + Canvas + Cytoscape.
+Do not “rewrite everything.” This project is intentionally lightweight: plain HTML/CSS + ES modules + Canvas + vis-network.
 
 Prefer surgical changes that:
 1) preserve current features,
@@ -79,7 +79,7 @@ The project uses native ESM:
 - `pathfinding.js`: road graph + BFS distances.
 - `metrics.js`: simulation model and rules.
 - `ui.js`: HUD metrics display and sparklines.
-- `graphView.js`: Cytoscape graph modal, nodes/edges, styles, interactions.
+- `graphView.js`: vis-network graph modal, nodes/edges, styles, interactions.
 - `game.js`: main entrypoint; loads example city, hooks inputs, render loop.
 
 ---
@@ -143,7 +143,7 @@ If you change markings, keep it connectivity-driven.
 Buildings are marked active based on road adjacency each recompute.
 
 ### 6.2 Influence decay
-Influence weight uses `expFalloff(distance, CONFIG.influenceFalloff)`.
+Influence weight uses model globals (see `model.js`): `expFalloff(distance, globals.lambda)` with threshold `globals.theta` and max distance `globals.dMax`.
 
 ### 6.3 Current heuristics (tunable)
 - Houses provide population baseline.
@@ -159,7 +159,7 @@ If changing formulas:
 
 ## 7) Graph View (graphView.js) — Target: “Obsidian-like”
 
-Current state: graph exists but the aesthetic needs refinement.
+Current state: Obsidian-like aesthetic is largely achieved; remaining focus is stability.
 
 ### 7.1 Visual requirements
 - not chunky; more technical/precise
@@ -168,13 +168,13 @@ Current state: graph exists but the aesthetic needs refinement.
 - hover tooltip on nodes (for now: internal id)
 - subtle physics “giggle” when dragging nodes, like Obsidian
 
-### 7.2 Implementation notes (Cytoscape)
-Cytoscape supports:
-- curved edges: `curve-style: bezier`
-- physics layouts: `cose` (built in)
-- hover events: `mouseover/mouseout`, `mousemove`
-- thin edges via `width` mapData
-- tooltips: implement a positioned div overlay in the modal
+### 7.2 Implementation notes (vis-network)
+vis-network supports:
+- physics solver: `forceAtlas2Based`
+- curved edges: `smooth: { type: "dynamic" }`
+- hover events: `hoverNode`, `hoverEdge`, `mousemove`
+- thin edges via `width`
+- tooltips: positioned div overlay in the modal
 
 ### 7.3 Hairball control
 To avoid “edge spaghetti”:
@@ -188,11 +188,8 @@ If capping edges, do it post-generation:
 - de-dupe edge ids
 
 ### 7.4 Jiggle behavior
-Cytoscape’s `cose` can be “reheated” after drag by:
-- running a short layout with animate=true
-- stopping it after 500–800ms
-
-Avoid continuous layout runs; it will feel chaotic.
+vis-network uses continuous physics; keep stabilization modest to avoid drift.
+Prefer small solver tweaks over aggressive auto-fit/auto-move.
 
 ---
 
@@ -206,9 +203,9 @@ If the world is blank:
 
 ### 8.2 Graph sanity checks
 If graph modal is blank:
-- confirm Cytoscape CDN loaded (Network tab)
+- confirm vis-network CDN loaded (Network tab)
 - confirm modal is not forced visible by CSS `.modal { display:grid }` overriding `.hidden`
-- check if `elements` passed to cytoscape contains nodes/edges
+- check if nodes/edges arrays are non-empty and `Network` is constructed
 
 ### 8.3 CSS modal override bug
 If `.hidden` doesn’t hide the modal:
