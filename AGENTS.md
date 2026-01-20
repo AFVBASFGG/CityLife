@@ -1,269 +1,559 @@
-# AGENTS.md — Automated Agent Handoff (CityLife)
+# AGENTS.md — Automated Agent Handoff (CityLife / Life City Builder)
 
-This handoff is written for an automated coding agent. It emphasizes stability, clarity, and incremental improvement. The codebase is intentionally lightweight: plain HTML/CSS, native ES modules, Canvas 2D rendering, and Cytoscape.js.
+This document is written for an automated coding agent to take over development safely and productively.
 
----
-
-## 1) Product Intent (Vision)
-
-CityLife is an isometric city builder that models **life balance** as a system:
-
-- Buildings represent commitments and activities (tasks, habits, projects).
-- Roads represent enabling pathways: time, effort, commute, or sequencing.
-- Influence between buildings decays with **shortest road distance**.
-- The objective is to sustain Income, Happiness, and Wellness in a balanced regime.
-
-The product should feel like a technical planning instrument rather than a toy.
+It contains:
+- Current goals and non-goals
+- Architecture map and invariants
+- Rendering + simulation details
+- Graph styling goals (Obsidian-like)
+- Known failure modes (blank screen, CSS modal issues)
+- A reliable debugging workflow
+- A task backlog with implementation notes
 
 ---
 
-## 2) Non-Negotiable Invariants
+## 0) Prime Directive
 
-Unless explicitly changed by product direction, preserve these invariants.
+Do not “rewrite everything.” This project is intentionally lightweight: plain HTML/CSS + ES modules + Canvas + Cytoscape.
 
-### 2.1 Activity gating by road adjacency
-A building is **Active** if and only if it is orthogonally adjacent to at least one road tile.
+Prefer surgical changes that:
+1) preserve current features,
+2) improve visuals,
+3) avoid adding build steps unless absolutely necessary.
 
-This affects:
+---
+
+## 1) Product Intent
+
+This is not a standard city sim. The city is a metaphor for planning and maintaining life balance:
+- **Work** structures generate income but can harm happiness if poorly placed.
+- **Self-care/leisure** improves happiness/wellness and indirectly supports work by making it sustainable.
+- **Distance matters**: relationships weaken as shortest road distance increases.
+
+User goals:
+- build, move, remove activities
+- see effects on Income/Happiness/Wellness
+- inspect the “activity network” as a graph
+
+---
+
+## 2) Absolute Invariants
+
+These rules must remain true unless product direction changes:
+
+### 2.1 Road adjacency gating
+A building is **Active** only if orthogonally adjacent to at least one road tile.
+
+This gating affects:
 - simulation contributions
-- relationship graph inclusion
-- UI indicators (e.g., “Needs road”)
+- relationship graph inclusion (edges typically only between active nodes)
+- UI badges (“Needs road”)
 
-### 2.2 Influence distance defined by road shortest path
-Distance \(d_{ij}\) is computed by BFS across road tiles from road-adjacent tiles near building \(i\) to road-adjacent tiles near building \(j\). If unreachable, \(d_{ij}=\infty\).
+### 2.2 Distance defined by road shortest path
+Influence distance is:
+- building A → its adjacent road tile(s)
+- BFS shortest path through road tiles to building B’s adjacent road tile(s)
+- distance = minimum BFS length over all adjacency combinations
 
-No Euclidean fallback unless explicitly requested.
+No Euclidean/Manhattan fallback unless explicitly decided.
 
-### 2.3 Native ES modules (no bundler)
-The project runs as ESM. It must be served by a local HTTP server. Avoid adding a build step unless requested.
-
----
-
-## 3) Codebase Map
-
-Root:
-- `index.html`: layout, HUD, toolbar, modal containers, script includes
-- `styles.css`: global styling, HUD, toolbar, modals, graph overlay styling
-
-`js/` modules:
-- `config.js`: grid size, tile size, thresholds, falloff parameters
-- `utils.js`: helpers (clamp, lerp, exp falloff, ids, formatting)
-- `isoRenderer.js`: Canvas isometric renderer
-- `pathfinding.js`: road graph + BFS
-- `metrics.js`: simulation heuristics and metric updates
-- `ui.js`: HUD, toasts, sparklines
-- `graphView.js`: Cytoscape graph modal, styling, interactions
-- `game.js`: main loop, input handlers, tools, starter city
+### 2.3 Modular ES modules (no bundler)
+The project uses native ESM:
+- requires running via local server
+- no bundler assumptions
+- avoid Node-only tooling unless introduced intentionally
 
 ---
 
-## 4) “Blank Screen” Failure Mode (Top Priority)
+## 3) Repository Layout & Responsibilities
 
-If the city is blank but the page loads:
-- almost always a JS syntax error preventing ESM module execution, or
-- an exception thrown repeatedly inside `renderer.draw()`.
+### Root
+- `index.html`: DOM layout, HUD, toolbar, modal container, script includes.
+- `styles.css`: global styling, HUD, toolbar, modal, graph styling.
 
-Workflow:
-1) open DevTools → Console
-2) take the first error (topmost red line)
-3) fix that file/line
-4) reload
-
-Typical causes:
-- brace mismatch or accidental nesting of class methods inside other methods in `isoRenderer.js`
-- duplicate `const` declarations inside a function
-- missing imports (e.g., using `lerp` without importing it)
-
-Recommendation:
-- add a lightweight error boundary in `game.js` around the render loop (catch → toast + stop loop) to avoid silent blank-screen states.
+### `js/`
+- `config.js`: grid size, tile pixel sizes, simulation tuning constants.
+- `utils.js`: helpers (clamp/lerp/uid/expFalloff/etc.).
+- `isoRenderer.js`: the Canvas renderer. **Most blank-screen bugs originate here** due to syntax mistakes.
+- `pathfinding.js`: road graph + BFS distances.
+- `metrics.js`: simulation model and rules.
+- `ui.js`: HUD metrics display and sparklines.
+- `graphView.js`: Cytoscape graph modal, nodes/edges, styles, interactions.
+- `game.js`: main entrypoint; loads example city, hooks inputs, render loop.
 
 ---
 
-## 5) Rendering (isoRenderer.js)
+## 4) Rendering Pipeline (isoRenderer.js)
 
-### 5.1 Depth ordering
-Draw items are sorted by \(x+y\) with small offsets:
-- tiles
-- roads
-- buildings
+### 4.1 Draw ordering
+Rendering uses depth sort based on `x + y` (plus tiny offsets):
+- tile first
+- then road
+- then building
 
-### 5.2 Camera
-`camera` fields:
-- `x`, `y`: world pan offsets
+### 4.2 Camera
+`camera` has:
+- `x`, `y` world offset (panning)
 - `zoom`
-- `rot`: 0..3 (90° rotations)
+- `rot` (0..3) 90° increments
 
-Conversions:
-- `gridToScreen` uses rotated coordinates to draw
-- `screenToGrid` maps cursor back to grid, then inverse rotates
+Coordinate transforms:
+- `gridToScreen()` uses rotated coordinates
+- `screenToGrid()` inverse maps screen → rotated iso → inverse rotation
 
-### 5.3 Road visuals
-Road tiles are asphalt diamonds. Markings must be derived from connectivity:
-- 1 neighbor: dead-end marking toward neighbor
-- 2 neighbors: corner or straight markings toward neighbors
-- 3–4 neighbors: no markings (avoid clutter)
+### 4.3 Common failure mode: “blank city”
+If the city is blank but DOM loads, almost always:
+- a syntax error in a JS module
+- an exception thrown every frame in `renderer.draw()`
 
-Keep markings coherent under rotation and zoom.
+Agent workflow:
+1) open DevTools console
+2) find first red error
+3) fix that file and reload
 
----
-
-## 6) Simulation Model (metrics.js) — Mathematical Target
-
-The current code uses pragmatic heuristics. The intended trajectory is a parameterized, editable model.
-
-Core equations (target):
-
-\[
-w_{ij} =
-\begin{cases}
-a_i a_j \cdot \exp\!\left(-\frac{d_{ij}}{\lambda}\right) & d_{ij}\le d_{\max}\\
-0 & \text{otherwise}
-\end{cases}
-\]
-
-\[
-\mathbf{M} \leftarrow \mathrm{clip}\left(\mathbf{M}_0 + \sum_i a_i \mathbf{b}_{t(i)} + \sum_{i\ne j} w_{ij}\mathbf{K}_{t(i),t(j)},\,\mathbf{M}_{\min},\,\mathbf{M}_{\max}\right)
-\]
-
-Where:
-- \( \mathbf{M}=[I,H,W]^T \)
-- \( \mathbf{b}_c \) is base contribution per category
-- \( \mathbf{K}_{c,u} \) is pairwise interaction coefficients
-- \( d_{ij} \) is BFS road distance
-- \( a_i \) is active gating
-
-When adjusting heuristics, preserve:
-- monotonic distance decay
-- bounded outputs (H/W typically 0..100)
-- clear sign conventions (e.g., factory-to-housing happiness penalty is negative)
+**Important gotcha:** If methods like `roadMask()` accidentally get pasted inside `drawRoad()`, the module becomes invalid and everything stops.
 
 ---
 
-## 7) Graph View (graphView.js) — Design Targets
+## 5) Road Rendering (isoRenderer.js)
 
-Aesthetic target: “Obsidian-like” technical graph:
-- small nodes with refined depth (no emoji tiles)
-- thin, curved edges; reduced visual weight
-- hover tooltip on node (currently internal id)
-- brief physics “reheat” after drag (“jiggle” then settle)
-- prevent hairballs with thresholding and/or per-node edge caps
+Road tile is a diamond with asphalt gradient.
 
-Implementation notes:
-- Cytoscape: `curve-style: bezier`, `control-point-step-size`
-- “Jiggle”: run a short COSE layout on `dragfree`, stop after ~0.6s
-- Tooltips: absolute-positioned div overlay inside the modal; update on `mouseover/mouseout/mousemove`
+The key design requirement:
+- road markings should “make sense” relative to connectivity.
+- intersections should be clean (minimal markings).
 
-Hairball control strategies:
+Current approach (intended):
+- compute neighbor mask (N/S/E/W roads)
+- only draw markings for:
+  - dead-end (1 neighbor)
+  - straight/corner (2 neighbors)
+- skip markings for:
+  - T junction (3 neighbors)
+  - 4-way intersection (4 neighbors)
+
+If you change markings, keep it connectivity-driven.
+
+---
+
+## 6) Simulation Model (metrics.js)
+
+### 6.1 Active gating
+Buildings are marked active based on road adjacency each recompute.
+
+### 6.2 Influence decay
+Influence weight uses `expFalloff(distance, CONFIG.influenceFalloff)`.
+
+### 6.3 Current heuristics (tunable)
+- Houses provide population baseline.
+- Work buildings’ income depends on worker access (houses weighted by distance).
+- Leisure boosts happiness near houses; also boosts work via attractiveness.
+- Factories penalize happiness/wellness when near houses/parks.
+
+If changing formulas:
+- keep monotonic distance-decay
+- ensure metrics stay reasonably bounded (happiness/wellness 0..100)
+
+---
+
+## 7) Graph View (graphView.js) — Target: “Obsidian-like”
+
+Current state: graph exists but the aesthetic needs refinement.
+
+### 7.1 Visual requirements
+- not chunky; more technical/precise
+- small nodes with refined “3D-ish” feel
+- edges thin, curved, not rigid straight lines
+- hover tooltip on nodes (for now: internal id)
+- subtle physics “giggle” when dragging nodes, like Obsidian
+
+### 7.2 Implementation notes (Cytoscape)
+Cytoscape supports:
+- curved edges: `curve-style: bezier`
+- physics layouts: `cose` (built in)
+- hover events: `mouseover/mouseout`, `mousemove`
+- thin edges via `width` mapData
+- tooltips: implement a positioned div overlay in the modal
+
+### 7.3 Hairball control
+To avoid “edge spaghetti”:
 - raise `CONFIG.influenceThreshold`
-- cap edges per node by weight (top N)
-- optionally hide labels by default; show on hover/selection
+- and/or cap edges per node by weight (keep top N connections per node)
+
+If capping edges, do it post-generation:
+- build adjacency lists
+- sort by weight
+- keep top N per node
+- de-dupe edge ids
+
+### 7.4 Jiggle behavior
+Cytoscape’s `cose` can be “reheated” after drag by:
+- running a short layout with animate=true
+- stopping it after 500–800ms
+
+Avoid continuous layout runs; it will feel chaotic.
 
 ---
 
-## 8) Early Deliverable: Spreadsheet Model Editor
+## 8) Debugging Workflow (Do This Every Time)
 
-Add a toolbar button that opens a spreadsheet-like table to edit:
-- base vectors \( \mathbf{b}_c \)
-- pairwise coefficients \( \mathbf{K}_{c,u} \)
-- global parameters \( d_{\max},\lambda,\theta \)
+### 8.1 Renderer sanity checks
+If the world is blank:
+1) check DevTools → Console for syntax error
+2) confirm `js/isoRenderer.js` loads without errors
+3) confirm `game.js` import chain works
 
-Requirements:
-- live apply changes to simulation + graph
-- persist to localStorage
-- export/import JSON model
+### 8.2 Graph sanity checks
+If graph modal is blank:
+- confirm Cytoscape CDN loaded (Network tab)
+- confirm modal is not forced visible by CSS `.modal { display:grid }` overriding `.hidden`
+- check if `elements` passed to cytoscape contains nodes/edges
 
-Implementation options:
-- embed a lightweight grid library, or
-- implement a minimal editable table with validation (numbers only, sane ranges)
-
----
-
-## 9) Planning Views (Future): Kanban + Gantt
-
-Target: multiple synchronized representations of the same objects.
-
-### 9.1 Object metadata
-Extend building/task objects with:
-- title
-- description/notes
-- status (Backlog / Active / Blocked / Done)
-- start date, due date, completion date
-- optional tags and dependencies
-
-### 9.2 Kanban
-- auto-generate lanes by status
-- drag cards between lanes updates building status
-- editing in Kanban updates building node metadata
-
-### 9.3 Gantt
-- timeline bars per building/task
-- editing dates updates node properties
-- dependencies can be derived from road connectivity or explicit links
-
-## 9.4 Advisors (LLM Agent Support)
-
-Planned feature: an omnipresent advisor panel (chat-style) that understands the city-as-life metaphor and provides actionable guidance.
-
-Core requirements:
-- Advisors operate as *personas* with distinct objectives:
-  - Income advisor: maximize runway and sustainable work output without burnout
-  - Happiness advisor: maximize motivation, enjoyment, and social/leisure balance
-  - Wellness advisor: maximize recovery, health, and long-term resilience
-  - Moderator advisor: reconcile tradeoffs and propose balanced experiments
-- Suggestions must cover two layers:
-  1) Model improvements: building placement, road connectivity, coefficient tuning, graph-based bottlenecks
-  2) Real-world actions: next tasks, scheduling changes, de-scoping, rest, habit formation
-- Explainability: when proposing an action, cite the relevant influence pathways (graph edges/weights) and metric deltas.
-- Safety and privacy:
-  - Default to privacy-first handling of user data
-  - Provide a local-only mode and/or require explicit user consent before sending information externally
-- UX:
-  - advisors feel like strategy-game counselors: compact, persistent, and context-aware
-  - allow toggling personas, muting, and “only notify on significant changes”
-
+### 8.3 CSS modal override bug
+If `.hidden` doesn’t hide the modal:
+Ensure:
+```css
+.modal.hidden { display:none !important; }
+.hidden { display:none !important; }
+```
 
 ---
 
-## 10) Running Locally (No Build)
+## 9) Local Run / No-Build
 
+Run in repo root:
 ```bash
 python -m http.server 8999
 ```
 
-Do not rely on `file://` because ESM imports may fail.
+Because modules are ESM, file:// won’t work reliably.
 
 ---
 
-## 11) Manual Test Checklist
+## 10) Code Conventions & Safety
 
-Core:
-- [ ] Starter city appears on load
-- [ ] Pan/zoom/rotate work
-- [ ] Place roads and buildings, remove them, move buildings
-
-Rules:
-- [ ] Buildings become active only when adjacent to roads
-- [ ] Metrics update and remain bounded
-- [ ] Graph opens/closes; nodes and edges appear
-
-Graph UX:
-- [ ] Tooltip appears on hover (id)
-- [ ] Dragging a node causes a brief “reheat” and settles
-
-Stability:
-- [ ] No console errors on load
-- [ ] If an error occurs, it is surfaced via toast and loop stops safely
+- Keep modules small and single-purpose.
+- Avoid introducing bundlers unless asked.
+- Prefer minimal dependencies; Cytoscape is already used.
+- Any rendering change should maintain:
+  - isometric orientation and depth sorting
+  - hover highlight correctness
+  - road adjacency rule
 
 ---
 
-## 12) Agent Change Discipline
+## 11) Test Checklist (Manual)
 
-- Prefer incremental changes over rewrites.
-- Keep modules small and single-responsibility.
-- Avoid new build tooling unless requested.
-- When implementing new UI (Model Editor, Kanban, Gantt), document:
-  - how it maps to building objects
-  - persistence format
-  - any new module responsibilities
+### Core world
+- [ ] Example city appears on load (roads + buildings visible)
+- [ ] Panning works
+- [ ] Zoom works
+- [ ] Rotate Q/E works
 
-If you add new files, update `README.md` and this document.
+### Tools
+- [ ] Road tool toggles road on empty tiles, never on building tiles
+- [ ] Build tool places building on empty non-road tiles
+- [ ] Bulldozer removes road/building
+- [ ] Move tool drags building to empty non-road tile
+
+### Rules
+- [ ] Buildings adjacent to roads show as active (no “Needs road”)
+- [ ] Buildings not adjacent show “Needs road” and don’t contribute
+
+### HUD
+- [ ] Income/Happiness/Wellness update after changes
+- [ ] Sparklines animate and do not crash
+
+### Graph
+- [ ] Graph opens/closes reliably
+- [ ] Nodes appear and edges appear for close connections
+- [ ] Hover shows tooltip (id)
+- [ ] Dragging a node causes satisfying “jiggle” and settles
+
+---
+
+## 12) Active Development Backlog (Recommended Sequence)
+
+### A) Stabilize blank-screen causes
+- Add an error boundary around the render loop in `game.js`:
+  - catch exceptions in `renderer.draw()` and display toast + stop the loop
+  - prevents silent failures
+
+### B) Graph polish to Obsidian-like quality
+- Implement overlay tooltip div in modal
+- Reduce node size + add refined glow/shadow
+- Thin bezier edges with opacity gradients
+- Layout tune (repulsion, idealEdgeLength)
+- “Reheat” layout briefly after drag
+
+### C) Road markings polish
+- Ensure markings depend on connectivity
+- Intersections have no markings
+- Optional: vary markings by straight/corner (tiny arcs instead of dashes)
+
+### D) Save/Load
+- Serialize grid + buildings to JSON
+- localStorage persistence
+- export/import UI buttons
+
+### E) Make “task nodes” first-class
+- Each building has a user-editable:
+  - title
+  - notes
+  - category override
+  - stress/energy cost
+- Graph shows these labels on hover
+
+---
+
+## 13) Notes for Agents About the Current State
+
+The user has experienced:
+- blank city caused by `isoRenderer.js` syntax errors (braces/method nesting, duplicate const)
+- road markings that “don’t make sense”
+- graph view that is too chunky and aesthetically crude
+
+Therefore:
+- prioritize correctness and stability before further polish
+- make changes incremental and verifiable with the test checklist
+
+---
+
+## 14) Agent Deliverable Expectations
+
+When you implement changes:
+- provide explicit patch instructions (file + exact blocks)
+- avoid vague directions
+- keep code style consistent with existing modules
+- do not introduce a build system unless requested
+
+If you add new files:
+- document them in README and update this AGENTS.md.
+
+---
+
+## 13) Technical Approaches for Roadmap Elements
+
+This section provides concrete implementation approaches for major roadmap items. It is written to help an automated agent choose incremental changes that fit the current architecture (native ES modules, Canvas renderer, minimal dependencies).
+
+### 13.1 Spreadsheet “Model Editor” (editable coefficients)
+
+**Goal:** Externalize and tune model parameters:
+- globals: \(d_{\max}, \lambda, \theta\), bounds
+- base contributions \(\mathbf{b}_c\)
+- pairwise coefficients \(\mathbf{K}_{c,u}\) (per metric)
+- optional piecewise rules (radius penalties, coverage requirements)
+
+**Recommended architecture**
+- Add a new module `js/model.js` responsible for:
+  - holding the active model object
+  - validation + normalization (clamps, defaults)
+  - serialization (JSON export/import)
+  - persistence (localStorage)
+- Modify `metrics.js` to consume `Model.get()` rather than hard-coded constants.
+- Modify `graphView.js` edge generation to read thresholds from the model.
+
+**UI options**
+1) **Minimal custom editable table (recommended first):**
+   - A `<table>` with `contenteditable` numeric cells + `<select>` for categories.
+   - Pros: no dependency, easy to iterate, predictable.
+   - Cons: more manual work for copy/paste and selection behavior.
+2) **Grid library (optional):**
+   - Tabulator (MIT) or similar lightweight grid.
+   - Pros: sorting, editing, validation, CSV.
+   - Cons: dependency weight and integration complexity.
+
+**Data model suggestion**
+- `model.globals`: `{ lambda, dMax, theta, bounds }`
+- `model.base[category] = { I, H, W }`
+- `model.pairwise[metric][target][source] = number`
+- `model.rules[] = { type, src, dst, radius, magnitude, enabled }`
+
+**Live-apply strategy**
+- Apply edits on a short debounce (e.g., 150–250ms).
+- After apply:
+  - recompute building activeness
+  - recompute metrics
+  - if graph modal is open, update Cytoscape elements/styles
+
+**Validation**
+- Numeric parsing with fallback to last known good value.
+- Enforce ranges for stability (e.g., \(\lambda>0\), \(0\le\theta\le1\)).
+- Reject NaN and Infinity.
+
+---
+
+### 13.2 Save/Load and Scenario Management
+
+**Goal:** Persist city + model + optional timeline.
+
+**Incremental approach**
+- Create `js/storage.js`:
+  - `save(state, model)` → localStorage JSON
+  - `load()` → validates + merges with defaults
+  - `exportToFile()` → download JSON
+  - `importFromFile(file)` → parse + validate
+
+**State serialization**
+- Prefer explicit, stable forms:
+  - grid roads as list of coordinates or a bitset string
+  - buildings as array of objects with stable ids
+  - model as separate object
+- Avoid storing derived data (road graphs, cached distances). Recompute on load.
+
+**Scenarios**
+- `scenarios[]` can be a list of snapshots with labels and timestamps.
+- Support “branching” by cloning current state into a new scenario.
+
+---
+
+### 13.3 Kanban View (status-driven planning)
+
+**Goal:** Represent the same building/task objects as cards in a Kanban board, with edits syncing back into the city.
+
+**Core data**
+- Extend building objects with:
+  - `title`, `notes`
+  - `status` (Backlog/Active/Blocked/Done)
+  - optional `tags`, `priority`
+
+**UI implementation**
+- Add `js/kanbanView.js` that renders into a modal or side panel.
+- Use native drag/drop:
+  - `dragstart` stores building id
+  - `drop` assigns new status
+- Keep rendering simple:
+  - columns are status buckets
+  - cards are buildings (click → select/center in city)
+
+**Sync rules**
+- Kanban edits update the canonical building object in `state.buildings`.
+- The isometric view can display subtle status accents (optional later).
+- Recompute metrics only if status changes should affect activity (optional; initial version can treat status as metadata only).
+
+**Persistence**
+- Include kanban metadata in save/load JSON.
+
+---
+
+### 13.4 Gantt View (time-based planning)
+
+**Goal:** Provide a timeline representation where buildings/tasks have dates and dependencies; editing updates the underlying objects.
+
+**Core data**
+- Extend buildings with:
+  - `startDate`, `dueDate`, `doneDate` (ISO strings)
+  - `progress` (0..1) optional
+  - `deps[]` explicit dependencies (ids)
+
+**Implementation options**
+1) **Minimal custom Gantt (recommended first):**
+   - Render a timeline grid in HTML/CSS
+   - Bars as absolutely positioned divs
+   - Drag handles adjust start/end (snap to days)
+2) **Library (optional later):**
+   - A lightweight open-source Gantt component if needed, but avoid heavy deps early.
+
+**Dependency mapping**
+- Option A: explicit `deps[]` edited in the UI
+- Option B: infer deps from road connectivity (not always semantically correct)
+- Recommendation: start explicit, later offer “suggest deps from roads”.
+
+**Sync**
+- When dates change, update building objects and persist.
+- Consider “schedule pressure” as an optional future metric modifier (not required at first).
+
+---
+
+### 13.5 Graph View Refinement (Obsidian-like aesthetics)
+
+**Goal:** Technical, refined graph with curved thin edges, subtle depth, tooltips, and brief physics “reheat”.
+
+**Cytoscape techniques**
+- Edge styling:
+  - `curve-style: bezier`
+  - `width: mapData(weight, min, max, 0.5, 2.0)`
+  - `opacity: mapData(weight, ..., 0.15, 0.75)`
+- Node styling:
+  - smaller nodes
+  - neutral palette, subtle glow
+  - hide labels by default; show on hover/selection
+- Tooltip:
+  - an absolutely positioned div in the modal
+  - events: `mouseover`, `mouseout`, `mousemove`
+- Jiggle:
+  - on `dragfree`, run a short `cose` layout with `animate: true`
+  - stop after ~600–900ms
+  - avoid continuous layout for stability
+
+**Hairball control**
+- Raise threshold \(\theta\) or cap edges per node (top-N by weight).
+- Prefer sparse edge lists for LLM summaries and for readability.
+
+---
+
+### 13.6 LLM Advisor Panel (multi-persona “advisors”)
+
+**Goal:** A persistent dialog panel that:
+- understands the city-as-life metaphor
+- suggests both model adjustments and real-world actions
+- supports multiple personas (Income/Happiness/Wellness/Moderator)
+
+**Recommended integration design**
+- Add `js/advisors/`:
+  - `advisors.js` (controller: UI + message routing)
+  - `prompts.js` (system + persona prompt templates)
+  - `summarizeState.js` (LLM-friendly state serialization, sparse edges, attribution)
+- Provide a single “context packet” builder:
+  - globals, metrics, nodes, connectivity stats, sparse edges, attribution
+  - stable ids and fixed precision floats
+
+**Runtime modes**
+- Local-only placeholder mode:
+  - advisors generate deterministic heuristic tips (no external calls)
+- External LLM mode (future):
+  - define a minimal interface `callLLM({persona, messages, context})`
+  - keep provider-specific code isolated
+  - require explicit user consent before sending state externally
+
+**Persona strategy**
+- Persona prompt = stable instruction + objective + formatting constraints.
+- Moderator persona should request the other personas’ summaries and reconcile.
+
+**UX notes**
+- Advisors should be compact, persistent, and non-intrusive.
+- Support:
+  - per-persona toggle/mute
+  - “notify only on significant metric shifts”
+  - action buttons that translate recommendations into in-game operations (later)
+
+---
+
+### 13.7 Asset Quality Improvements (icons and visuals)
+
+**Goal:** Replace placeholder visuals with a coherent, serious aesthetic.
+
+**Incremental approach**
+- Keep Canvas isometric prism rendering for buildings but:
+  - add a consistent icon set (SVG) rendered onto top faces
+  - maintain a neutral, professional palette
+- For graph nodes:
+  - use simple vector glyphs (SVG) with subtle gradients
+  - avoid emoji tiles and harsh outlines
+
+**Implementation notes**
+- Preload SVGs into `Image()` objects or inline as data URIs.
+- Cache rendered icon canvases per type+size to reduce draw cost.
+
+---
+
+### 13.8 Extending the Simulation (without instability)
+
+**Guidelines**
+- Keep the model bounded:
+  - clamp Happiness/Wellness
+  - avoid runaway positive feedback loops
+- Add features as optional terms that can be disabled in the Model Editor.
+- Provide attribution for changes (top contributors) to support explainability and advisor quality.
+
