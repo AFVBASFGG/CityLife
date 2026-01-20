@@ -6,6 +6,7 @@ export class IsoRenderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.state = state;
+    this.iconCache = new Map();
 
     this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     this.resize();
@@ -18,6 +19,20 @@ export class IsoRenderer {
     };
 
     this.hoverTile = null;
+  }
+
+  centerOnWorld() {
+    const W = this.state.gridW;
+    const H = this.state.gridH;
+    const cx = (W - 1) / 2;
+    const cy = (H - 1) / 2;
+    const rc = this.rotCoord(cx, cy);
+    const tw = CONFIG.tileW;
+    const th = CONFIG.tileH;
+    const sx = (rc.x - rc.y) * (tw / 2);
+    const sy = (rc.x + rc.y) * (th / 2);
+    this.camera.x = -sx;
+    this.camera.y = -sy;
   }
 
   resize() {
@@ -165,9 +180,9 @@ export class IsoRenderer {
     const th = CONFIG.tileH * this.camera.zoom;
 
     // subtle checker-ish ground with gradient
-    const base = (x + y) % 2 === 0 ? 0.08 : 0.05;
+    const base = (x + y) % 2 === 0 ? 0.05 : 0.03;
     const fill = `rgba(255,255,255,${base})`;
-    const edge = "rgba(255,255,255,0.08)";
+    const edge = "rgba(255,255,255,0.06)";
 
     this.isoDiamond(ctx, p.x, p.y, tw, th, fill, edge);
 
@@ -202,18 +217,25 @@ export class IsoRenderer {
     ctx.closePath();
 
     const grad = ctx.createLinearGradient(D.x, A.y, B.x, C.y);
-    grad.addColorStop(0, "rgba(18,18,24,0.92)");
-    grad.addColorStop(1, "rgba(66,66,88,0.60)");
+    grad.addColorStop(0, "rgba(30,34,44,0.98)");
+    grad.addColorStop(1, "rgba(90,100,130,0.75)");
     ctx.fillStyle = grad;
     ctx.fill();
 
     // edge stroke
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.lineWidth = 1.2;
     ctx.stroke();
 
+    // outer glow to lift roads from tiles
+    ctx.globalAlpha = 0.32;
+    ctx.strokeStyle = "rgba(120,160,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
     // subtle inset highlight
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.32;
     ctx.beginPath();
     ctx.moveTo(A.x, A.y + th * 0.1);
     ctx.lineTo(B.x - tw * 0.1, B.y);
@@ -329,15 +351,35 @@ export class IsoRenderer {
     // isometric prism
     this.isoPrism(ctx, p.x, p.y, tw, th, h * th * 1.85, colors, active);
 
-    // top icon
-    const icon = this.state.getBuildingIcon(b.type);
-    ctx.save();
-    ctx.font = `${Math.max(12, Math.floor(18 * this.camera.zoom))}px ui-sans-serif, system-ui, Apple Color Emoji, Segoe UI Emoji`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.globalAlpha = active ? 0.95 : 0.55;
-    ctx.fillText(icon, p.x, p.y - h * th * 1.02);
-    ctx.restore();
+    // top icon (SVG)
+    const iconSize = Math.max(18, Math.floor(22 * this.camera.zoom));
+    try {
+      const iconImg = this.getIconImage(b.type, colors.top, active);
+      const ix = p.x - iconSize / 2;
+      const iy = p.y - h * th * 1.05 - iconSize / 2;
+      if (iconImg && iconImg.complete) {
+        ctx.save();
+        ctx.globalAlpha = active ? 0.95 : 0.55;
+        ctx.drawImage(iconImg, ix, iy, iconSize, iconSize);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.globalAlpha = active ? 0.6 : 0.35;
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - h * th * 1.05, iconSize * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    } catch {
+      ctx.save();
+      ctx.globalAlpha = active ? 0.6 : 0.35;
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - h * th * 1.05, iconSize * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // inactive indicator
     if (!active) {
@@ -487,5 +529,59 @@ export class IsoRenderer {
     ctx.fill();
 
     ctx.restore();
+  }
+
+  getIconImage(type, bg, active) {
+    const stroke = active ? "#EAF2FF" : "rgba(230,230,240,0.65)";
+    const fill = active ? bg : "rgba(120,130,150,0.5)";
+    const key = `${type}|${fill}|${stroke}`;
+    if (this.iconCache.has(key)) return this.iconCache.get(key);
+
+    let glyph = "";
+    if (type === "house") {
+      glyph = `
+  <path d="M8 16 L16 9 L24 16" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" />
+  <rect x="9" y="16" width="14" height="9" fill="none" stroke="${stroke}" stroke-width="2" />
+  <rect x="14" y="19" width="4" height="6" fill="${stroke}" />`;
+    } else if (type === "office") {
+      glyph = `
+  <rect x="9" y="8" width="14" height="16" fill="none" stroke="${stroke}" stroke-width="2" />
+  <path d="M12 12 H20 M12 16 H20 M12 20 H20" stroke="${stroke}" stroke-width="2" />`;
+    } else if (type === "factory") {
+      glyph = `
+  <rect x="7" y="20" width="18" height="5" fill="none" stroke="${stroke}" stroke-width="2" />
+  <path d="M7 20 V12 L11 14 L15 12 L19 14 L23 12 V20" fill="none" stroke="${stroke}" stroke-width="2" />
+  <rect x="22" y="8" width="3" height="6" fill="${stroke}" />`;
+    } else if (type === "park") {
+      glyph = `
+  <circle cx="17" cy="12" r="5" fill="none" stroke="${stroke}" stroke-width="2" />
+  <rect x="15" y="17" width="4" height="7" fill="${stroke}" />`;
+    } else if (type === "mall") {
+      glyph = `
+  <rect x="8" y="13" width="16" height="10" fill="none" stroke="${stroke}" stroke-width="2" />
+  <path d="M8 13 L10 9 H22 L24 13" fill="none" stroke="${stroke}" stroke-width="2" />`;
+    } else if (type === "hospital") {
+      glyph = `
+  <path d="M16 9 V23 M9 16 H23" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" />`;
+    } else if (type === "school") {
+      glyph = `
+  <path d="M9 13 L16 9 L23 13" fill="none" stroke="${stroke}" stroke-width="2" />
+  <rect x="9" y="13" width="14" height="10" fill="none" stroke="${stroke}" stroke-width="2" />`;
+    } else {
+      glyph = `
+  <circle cx="16" cy="16" r="5" fill="none" stroke="${stroke}" stroke-width="2" />`;
+    }
+
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <circle cx="16" cy="16" r="15" fill="${fill}" />
+  ${glyph}
+</svg>`;
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    this.iconCache.set(key, img);
+    return img;
   }
 }

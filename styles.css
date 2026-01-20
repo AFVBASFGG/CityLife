@@ -191,3 +191,9 @@ html,body{ height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-
   box-shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
 .modal-body{ position:relative; } /* needed for tooltip positioning */
+
+#cy canvas{
+  width:100% !important;
+  height:100% !important;
+  display:block;
+}

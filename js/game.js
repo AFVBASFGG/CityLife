@@ -214,6 +214,7 @@ initDebug();
 logEvent("info", "game_init", { gridW: state.gridW, gridH: state.gridH });
 
 const renderer = new IsoRenderer(canvas, state);
+renderer.centerOnWorld();
 setupToolbar(state, ui);
 setupHotkeys(renderer, state);
 
@@ -373,6 +374,7 @@ document.getElementById("graphBtn").addEventListener("click", () => {
 
 document.getElementById("resetBtn").addEventListener("click", () => {
     loadExampleCity(state);
+    renderer.centerOnWorld();
     recompute();
     ui.showToast("Loaded example city");
     logEvent("info", "reset_example_city");
@@ -390,6 +392,7 @@ document.getElementById("closeGraph").addEventListener("click", () => {
 });
 
 // Animation loop
+let renderFailed = false;
 function loop(now) {
     const dt = now - lastTick;
     if (dt >= CONFIG.tickMs) {
@@ -400,7 +403,17 @@ function loop(now) {
         lastTick = now;
     }
 
-    renderer.draw();
+    if (!renderFailed) {
+        try {
+            renderer.draw();
+        } catch (err) {
+            renderFailed = true;
+            logEvent("error", "render_failed", { message: String(err) });
+            ui.showToast("Render error — check console/logs");
+            return;
+        }
+    }
+
     requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

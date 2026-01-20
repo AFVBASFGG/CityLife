@@ -125,13 +125,30 @@ export async function captureCanvasScreenshot(canvas, name = "canvas") {
   }
 }
 
-export async function captureGraphScreenshot(cy, name = "graph") {
+export async function captureGraphScreenshot(graph, name = "graph") {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `shot-${name}-${ts}.png`;
 
-  const dataUrl = cy.png({ bg: "transparent", scale: 2 });
-  const blob = dataUrlToBlob(dataUrl);
-  await saveBlobToDebug(blob, filename);
-  logEvent("info", "screenshot_graph", { filename });
-  await flushLogs(true);
+  // Cytoscape instance
+  if (graph && typeof graph.png === "function") {
+    const dataUrl = graph.png({ bg: "transparent", scale: 2 });
+    const blob = dataUrlToBlob(dataUrl);
+    await saveBlobToDebug(blob, filename);
+    logEvent("info", "screenshot_graph", { filename });
+    await flushLogs(true);
+    return;
+  }
+
+  // vis-network instance
+  if (graph && graph.canvas && graph.canvas.frame && graph.canvas.frame.canvas) {
+    const canvas = graph.canvas.frame.canvas;
+    const dataUrl = canvas.toDataURL("image/png");
+    const blob = dataUrlToBlob(dataUrl);
+    await saveBlobToDebug(blob, filename);
+    logEvent("info", "screenshot_graph", { filename });
+    await flushLogs(true);
+    return;
+  }
+
+  logEvent("error", "screenshot_failed", { reason: "unsupported_graph_instance" });
 }
