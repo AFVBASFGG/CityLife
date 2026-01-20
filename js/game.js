@@ -4,8 +4,9 @@ import { IsoRenderer } from "./isoRenderer.js";
 import { RoadGraph } from "./pathfinding.js";
 import { computeMetrics } from "./metrics.js";
 import { UI } from "./ui.js";
-import { openGraphModal } from "./graphView.js";
 import { initDebug, logEvent, captureCanvasScreenshot } from "./debugTools.js";
+import { openModelEditor } from "./modelEditor.js";
+import { openBuildingEditor } from "./buildingEditor.js";
 
 // -----------------------
 // Game State
@@ -84,7 +85,7 @@ class GameState {
         if (cell.buildingId) return { ok: false, reason: "Tile occupied" };
 
         const id = uid(type);
-        const b = { id, type, x, y, active: false };
+        const b = { id, type, x, y, active: false, name: "", description: "", tasks: [] };
         this.buildings.set(id, b);
         cell.buildingId = id;
         return { ok: true, id };
@@ -217,6 +218,13 @@ const renderer = new IsoRenderer(canvas, state);
 renderer.centerOnWorld();
 setupToolbar(state, ui);
 setupHotkeys(renderer, state);
+
+function refreshLayout() {
+    renderer.resize();
+    renderer.centerOnWorld();
+}
+window.addEventListener("resize", refreshLayout);
+requestAnimationFrame(refreshLayout);
 
 let roadGraph = new RoadGraph(state);
 let metrics = computeMetrics(state, roadGraph);
@@ -369,7 +377,20 @@ document.getElementById("graphBtn").addEventListener("click", () => {
     // refresh metrics before opening graph
     recompute();
     logEvent("info", "graph_open", { buildings: state.buildings.size });
-    openGraphModal(state, roadGraph, metrics);
+    import("./graphView.js")
+        .then(mod => mod.openGraphModal(state, roadGraph, metrics))
+        .catch(err => {
+            logEvent("error", "graph_open_failed", { error: String(err) });
+            ui.showToast("Graph failed — check console/logs");
+        });
+});
+
+document.getElementById("modelBtn").addEventListener("click", () => {
+    openModelEditor();
+});
+
+document.getElementById("buildingBtn").addEventListener("click", () => {
+    openBuildingEditor(state);
 });
 
 document.getElementById("resetBtn").addEventListener("click", () => {
@@ -393,6 +414,7 @@ document.getElementById("closeGraph").addEventListener("click", () => {
 
 // Animation loop
 let renderFailed = false;
+let lastRenderErrorAt = 0;
 function loop(now) {
     const dt = now - lastTick;
     if (dt >= CONFIG.tickMs) {
@@ -403,14 +425,16 @@ function loop(now) {
         lastTick = now;
     }
 
-    if (!renderFailed) {
-        try {
-            renderer.draw();
-        } catch (err) {
+    try {
+        renderer.draw();
+        renderFailed = false;
+    } catch (err) {
+        const t = performance.now();
+        if (!renderFailed || t - lastRenderErrorAt > 2000) {
+            lastRenderErrorAt = t;
             renderFailed = true;
             logEvent("error", "render_failed", { message: String(err) });
             ui.showToast("Render error — check console/logs");
-            return;
         }
     }
 

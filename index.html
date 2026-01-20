@@ -70,6 +70,8 @@
       <div class="toolgroup">
         <div class="toolgroup-title">Views</div>
         <button id="graphBtn" class="toolbtn glow">🧠 Relationship Graph</button>
+        <button id="modelBtn" class="toolbtn">🧮 Model Editor</button>
+        <button id="buildingBtn" class="toolbtn">📝 Building Details</button>
         <button id="screenshotBtn" class="toolbtn">📸 Screenshot</button>
         <button id="resetBtn" class="toolbtn">🔄 Reset to Example City</button>
       </div>
@@ -97,6 +99,82 @@
       <canvas id="gameCanvas"></canvas>
       <div id="toast" class="toast hidden"></div>
     </main>
+  </div>
+
+  <!-- Model Editor Modal -->
+  <div id="modelModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card model-card">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Model Editor</div>
+          <div class="modal-subtitle">Edit global parameters, base contributions, and pairwise coefficients.</div>
+        </div>
+        <div>
+          <button id="modelReset" class="toolbtn">↺ Reset</button>
+          <button id="modelExport" class="toolbtn">⤓ Export</button>
+          <button id="modelImport" class="toolbtn">⤒ Import</button>
+          <button id="modelClose" class="toolbtn">✖ Close</button>
+        </div>
+      </div>
+      <div class="modal-body model-body">
+        <div class="modelTabs">
+          <button class="toolbtn modelTab active" data-tab="globals">Globals</button>
+          <button class="toolbtn modelTab" data-tab="base">Base</button>
+          <button class="toolbtn modelTab" data-tab="income">Income K</button>
+          <button class="toolbtn modelTab" data-tab="happiness">Happiness K</button>
+          <button class="toolbtn modelTab" data-tab="wellness">Wellness K</button>
+        </div>
+        <div class="modelContent">
+          <div class="modelPanels">
+            <div id="modelGlobals" class="modelPanel" data-panel="globals"></div>
+            <div id="modelBase" class="modelPanel hidden" data-panel="base"></div>
+            <div id="modelIncome" class="modelPanel hidden" data-panel="income"></div>
+            <div id="modelHappiness" class="modelPanel hidden" data-panel="happiness"></div>
+            <div id="modelWellness" class="modelPanel hidden" data-panel="wellness"></div>
+          </div>
+          <aside class="modelHelp">
+            <div class="sideCard">
+              <div class="sideTitle">Instructions</div>
+              <div id="modelInstructions" class="sideText"></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+    <input id="modelImportFile" class="hidden" type="file" accept="application/json" />
+  </div>
+
+  <!-- Building Details Modal -->
+  <div id="buildingModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card building-card">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Building Details</div>
+          <div id="buildingMeta" class="modal-subtitle">Select a building to edit.</div>
+        </div>
+        <div>
+          <button id="buildingClose" class="toolbtn">✖ Close</button>
+        </div>
+      </div>
+      <div class="modal-body building-body">
+        <div class="buildingForm">
+          <label class="fieldLabel">Name</label>
+          <input id="buildingName" class="modelInput" type="text" placeholder="Optional name" />
+
+          <label class="fieldLabel">Description</label>
+          <textarea id="buildingDesc" class="modelInput" rows="4" placeholder="Notes, intent, context"></textarea>
+
+          <div class="tasksHeader">
+            <span class="fieldLabel">Tasks</span>
+            <div class="tasksAdd">
+              <input id="taskText" class="modelInput" type="text" placeholder="New task" />
+              <button id="taskAdd" class="toolbtn">＋ Add</button>
+            </div>
+          </div>
+          <div id="taskList" class="taskList"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Graph Modal -->

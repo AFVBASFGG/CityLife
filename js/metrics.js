@@ -1,5 +1,5 @@
 import { expFalloff, clamp } from "./utils.js";
-import { CONFIG } from "./config.js";
+import { getModel, categoryForType } from "./model.js";
 
 /**
  * Life-balance simulation:
@@ -10,6 +10,8 @@ import { CONFIG } from "./config.js";
  * - Distance is shortest road distance; influence weight decays exponentially.
  */
 export function computeMetrics(state, roadGraph){
+  const model = getModel();
+  const g = model.globals;
   const buildings = [...state.buildings.values()];
 
   // Determine road-active
@@ -36,9 +38,10 @@ export function computeMetrics(state, roadGraph){
       const A = byId.get(ids[i]);
       const B = byId.get(ids[j]);
       if (!A.active || !B.active) continue;
-      const d = roadGraph.roadDistanceBetweenBuildings(A,B, CONFIG.maxUsefulDistance);
+      const d = roadGraph.roadDistanceBetweenBuildings(A,B, g.dMax);
       if (!Number.isFinite(d)) continue;
-      const w = expFalloff(d, CONFIG.influenceFalloff);
+      const w = expFalloff(d, g.lambda);
+      if (w < g.theta) continue;
       pair.set(k(A.id,B.id), {d,w});
     }
   }
@@ -95,83 +98,51 @@ export function computeMetrics(state, roadGraph){
     return clamp(l / 2.2, 0, 0.35); // up to +35%
   }
 
-  // Compute metrics
+  // Compute metrics from model
   let income = 0;
-  let happiness = 50; // baseline
-  let wellness = 50;  // baseline
+  let happiness = g.happinessBase;
+  let wellness = g.wellnessBase;
 
-  // Houses: contribute small baseline happiness/wellness (home stability)
-  const houseCount = buildings.filter(b=>b.active && b.type==="house").length;
-  happiness += houseCount * 1.2;
-  wellness  += houseCount * 0.8;
-
-  // Parks/Malls/Hospitals effects on nearby houses
-  // We compute each house benefit from leisure proximity
-  for (const h of buildings){
-    if (!h.active || h.type!=="house") continue;
-
-    const park = influenceTo(h, ["park"]);
-    const mall = influenceTo(h, ["mall"]);
-    const hosp = influenceTo(h, ["hospital"]);
-
-    happiness += 12 * clamp(park, 0, 1.0);
-    happiness +=  9 * clamp(mall, 0, 1.0);
-
-    wellness  += 14 * clamp(hosp, 0, 1.0);
-    wellness  +=  6 * clamp(park, 0, 1.0);
-
-    // Schools: mild happiness/wellness near houses
-    const school = influenceTo(h, ["school"]);
-    happiness += 6 * clamp(school, 0, 0.8);
-    wellness  += 4 * clamp(school, 0, 0.8);
-  }
-
-  // Work buildings
+  // Base contributions per active building
   for (const b of buildings){
     if (!b.active) continue;
+    const cat = categoryForType(b.type);
+    const base = model.base[cat] || { I: 0, H: 0, W: 0 };
+    income += base.I;
+    happiness += base.H;
+    wellness += base.W;
+  }
 
-    if (b.type === "office"){
-      const needed = 22; // needs enough nearby workers
-      const workers = workerAccess(b);
-      const utilization = clamp(workers / needed, 0, 1);
-      const boost = 1 + leisureBonus(b);
+  // Pairwise contributions (directed)
+  for (let i=0; i<ids.length; i++){
+    for (let j=i+1; j<ids.length; j++){
+      const A = byId.get(ids[i]);
+      const B = byId.get(ids[j]);
+      if (!A.active || !B.active) continue;
+      const p = pair.get(k(A.id, B.id));
+      if (!p) continue;
 
-      // offices represent capacity & future income: stable but needs workers
-      const officeIncome = 18 * utilization * boost;
-      income += officeIncome;
+      const aCat = categoryForType(A.type);
+      const bCat = categoryForType(B.type);
 
-      // too few workers can add stress (small happiness penalty)
-      happiness -= (1 - utilization) * 3.0;
-    }
+      const w = p.w;
+      const incAB = model.pairwise.income?.[aCat]?.[bCat] ?? 0;
+      const hapAB = model.pairwise.happiness?.[aCat]?.[bCat] ?? 0;
+      const welAB = model.pairwise.wellness?.[aCat]?.[bCat] ?? 0;
 
-    if (b.type === "factory"){
-      const needed = 18;
-      const workers = workerAccess(b);
-      const utilization = clamp(workers / needed, 0, 1);
-      const boost = 1 + leisureBonus(b);
+      const incBA = model.pairwise.income?.[bCat]?.[aCat] ?? 0;
+      const hapBA = model.pairwise.happiness?.[bCat]?.[aCat] ?? 0;
+      const welBA = model.pairwise.wellness?.[bCat]?.[aCat] ?? 0;
 
-      // factories represent current income: higher but volatile
-      const factoryIncome = 28 * utilization * boost;
-      income += factoryIncome;
-
-      // negative externality if too close to houses/parks
-      const closeToHouses = nearestPenalty(b, ["house"]);
-      const closeToParks  = nearestPenalty(b, ["park"]);
-      happiness -= 16 * clamp(closeToHouses, 0, 1);
-      happiness -= 10 * clamp(closeToParks, 0, 1);
-
-      // wellness penalty too (burnout)
-      wellness  -= 7 * clamp(closeToHouses, 0, 1);
+      income += w * (incAB + incBA);
+      happiness += w * (hapAB + hapBA);
+      wellness += w * (welAB + welBA);
     }
   }
 
-  // Malls & Parks also slightly reduce burnout (wellness) but only if connected already handled
-  const parks = buildings.filter(b=>b.active && b.type==="park").length;
-  wellness += parks * 1.0;
-
-  // Clamp and derive “life balance” (optional)
-  happiness = clamp(happiness, 0, 100);
-  wellness  = clamp(wellness, 0, 100);
+  // Clamp metrics
+  happiness = clamp(happiness, g.happinessMin, g.happinessMax);
+  wellness  = clamp(wellness, g.wellnessMin, g.wellnessMax);
 
   // Income is open-ended; normalize for HUD in UI
   return { income, happiness, wellness, population };

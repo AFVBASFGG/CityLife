@@ -192,6 +192,34 @@ html,body{ height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-
 }
 .modal-body{ position:relative; } /* needed for tooltip positioning */
 
+/* Model Editor */
+.model-card{ width:min(1200px, 96vw); height:min(760px, 90vh); }
+.model-body{ display:flex; flex-direction:column; gap:12px; padding:12px; }
+.modelContent{ flex:1; display:grid; grid-template-columns: 1fr 320px; gap:12px; min-height:0; }
+.modelHelp{ display:flex; flex-direction:column; }
+.modelTabs{ display:flex; gap:8px; flex-wrap:wrap; }
+.modelPanels{ flex:1; overflow:auto; border:1px solid rgba(255,255,255,0.10); border-radius:14px; padding:12px; background: rgba(10,12,18,0.45); }
+.modelPanel{ width:100%; }
+.modelTable{ width:100%; border-collapse: collapse; font-size:12.5px; }
+.modelTable th, .modelTable td{ border:1px solid rgba(255,255,255,0.10); padding:6px 8px; }
+.modelTable th{ position:sticky; top:0; background: rgba(20,26,40,0.9); z-index:1; text-align:left; }
+.modelTable td{ background: rgba(255,255,255,0.03); }
+.modelInput{ width:100%; background: rgba(255,255,255,0.06); color: var(--text); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:4px 6px; }
+.modelInput:focus{ outline: none; border-color: rgba(120,140,255,0.55); box-shadow: 0 0 0 2px rgba(120,140,255,0.18); }
+
+/* Building Details */
+.building-card{ width:min(880px, 94vw); height:min(640px, 88vh); }
+.building-body{ display:flex; padding:16px; }
+.buildingForm{ display:flex; flex-direction:column; gap:10px; width:100%; }
+.fieldLabel{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.25px; }
+.tasksHeader{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:6px; }
+.tasksAdd{ display:flex; gap:8px; align-items:center; }
+.taskList{ display:flex; flex-direction:column; gap:8px; padding-top:6px; }
+.taskRow{ display:grid; grid-template-columns: 20px 1fr 32px; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); }
+.taskRow input[type="text"]{ background: transparent; border:none; color:var(--text); width:100%; }
+.taskRow input[type="text"]:focus{ outline:none; }
+.taskDone{ accent-color: #7fb6ff; }
+
 #cy canvas{
   width:100% !important;
   height:100% !important;

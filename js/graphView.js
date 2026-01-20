@@ -1,5 +1,5 @@
-import { CONFIG } from "./config.js";
 import { expFalloff, round2, clamp } from "./utils.js";
+import { getModel } from "./model.js";
 import { logEvent, captureGraphScreenshot, flushLogs } from "./debugTools.js";
 
 export function openGraphModal(state, roadGraph, metrics) {
@@ -21,6 +21,8 @@ export function openGraphModal(state, roadGraph, metrics) {
   `;
 
     const buildings = [...state.buildings.values()];
+    const model = getModel();
+    const g = model.globals;
 
     // node styling by category
     function nodeStyle(type) {
@@ -55,11 +57,11 @@ export function openGraphModal(state, roadGraph, metrics) {
             const A = buildings[i], B = buildings[j];
             if (!A.active || !B.active) continue;
 
-            const d = roadGraph.roadDistanceBetweenBuildings(A, B, CONFIG.maxUsefulDistance);
+            const d = roadGraph.roadDistanceBetweenBuildings(A, B, g.dMax);
             if (!Number.isFinite(d)) continue;
 
-            const w = expFalloff(d, CONFIG.influenceFalloff);
-            if (w < CONFIG.influenceThreshold) continue;
+            const w = expFalloff(d, g.lambda);
+            if (w < g.theta) continue;
 
             edges.push({
                 data: {
@@ -266,7 +268,7 @@ export function openGraphModal(state, roadGraph, metrics) {
         const network = new visLib.Network(cyEl, data, options);
         logEvent("info", "graph_network_created", { nodes: nodeItems.length, edges: edgeItems.length });
 
-    const tip = document.getElementById("graphTooltip");
+        const tip = document.getElementById("graphTooltip");
 
         let hoveredNodeId = null;
         let hoveredEdgeId = null;
@@ -419,6 +421,13 @@ export function openGraphModal(state, roadGraph, metrics) {
             flushLogs(true);
         }
 
+        function outside(e) {
+            if (e.target === modal) close();
+        }
+        function esc(e) {
+            if (e.key === "Escape") close();
+        }
+
         closeBtn.addEventListener("click", close);
         modal.addEventListener("click", outside);
         window.addEventListener("keydown", esc);
@@ -458,14 +467,7 @@ export function openGraphModal(state, roadGraph, metrics) {
         return;
     }
 
-    const network = initGraph(window.vis);
-
-    function outside(e) {
-        if (e.target === modal) close();
-    }
-    function esc(e) {
-        if (e.key === "Escape") close();
-    }
+    initGraph(window.vis);
 
     // close handlers are registered in initGraph
 }
