@@ -243,6 +243,103 @@ Implementation suggestion:
 
 ---
 
+
+### Spreadsheet-like editing (proposed table formats)
+
+The “Model Editor” can be implemented as a spreadsheet-style grid. Below are markdown tables that illustrate the structure and the kinds of values that would be editable. In the application, each table would be **directly editable** (cells, dropdowns, validation), and saved as a JSON “model” that can be exported/imported.
+
+#### 1) Global parameters
+
+| Parameter | Description | Example | Notes |
+|---|---|---:|---|
+| \(d_{\max}\) | Max useful road distance for influence | 18 | Edges beyond this distance are ignored |
+| \(\lambda\) | Exponential falloff scale | 7.5 | Larger = slower decay with distance |
+| \(\theta\) | Edge threshold (min \(w_{ij}\)) | 0.12 | Higher = fewer edges (less “hairball”) |
+| \(H_{\min},H_{\max}\) | Happiness bounds | 0, 100 | Clamp after update |
+| \(W_{\min},W_{\max}\) | Wellness bounds | 0, 100 | Clamp after update |
+
+#### 2) Category base contributions \(\mathbf{b}_c=[b_c^{(I)}, b_c^{(H)}, b_c^{(W)}]\)
+
+Each active building contributes a base vector to the global metrics.
+
+| Category | \(b^{(I)}\) | \(b^{(H)}\) | \(b^{(W)}\) | Interpretation |
+|---|---:|---:|---:|---|
+| Housing | 0.0 | +0.6 | +0.4 | Stability/availability baseline |
+| Work (Current) | +2.0 | -0.6 | -0.4 | Immediate income with strain |
+| Work (Capacity) | +0.8 | -0.2 | -0.1 | Planning/long-term enablement |
+| Leisure | 0.0 | +1.2 | +0.3 | Joy, retention, recovery |
+| Health | 0.0 | +0.2 | +1.4 | Recovery and resilience |
+| Development | +0.3 | +0.1 | +0.2 | Long-term compounding effects |
+
+In the UI, “Category” can be a dropdown; values are numeric with ranges and tooltips.
+
+#### 3) Pairwise interaction coefficients \(\mathbf{K}_{c,u}\)
+
+These coefficients define how a *source* category \(u\) influences a *target* category \(c\), scaled by distance weight \(w_{ij}\).
+
+A practical editor approach is to provide **separate tables per metric** (Income/Happiness/Wellness), plus a “sign convention” guide.
+
+##### 3a) Income interactions \(k^{(I)}_{c,u}\)
+
+| Target \ Source | Housing | Work (Current) | Work (Capacity) | Leisure | Health | Development |
+|---|---:|---:|---:|---:|---:|---:|
+| Housing | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| Work (Current) | +0.25 | 0.00 | +0.15 | +0.10 | +0.05 | +0.10 |
+| Work (Capacity) | +0.20 | +0.05 | 0.00 | +0.05 | +0.05 | +0.15 |
+| Leisure | 0.00 | +0.02 | +0.02 | 0.00 | +0.01 | +0.02 |
+| Health | 0.00 | +0.03 | +0.03 | +0.02 | 0.00 | +0.02 |
+| Development | +0.05 | +0.04 | +0.06 | +0.03 | +0.03 | 0.00 |
+
+##### 3b) Happiness interactions \(k^{(H)}_{c,u}\)
+
+| Target \ Source | Housing | Work (Current) | Work (Capacity) | Leisure | Health | Development |
+|---|---:|---:|---:|---:|---:|---:|
+| Housing | 0.00 | -0.18 | -0.06 | +0.22 | +0.10 | +0.06 |
+| Work (Current) | -0.10 | 0.00 | +0.02 | +0.08 | +0.05 | +0.03 |
+| Work (Capacity) | -0.04 | +0.02 | 0.00 | +0.06 | +0.04 | +0.06 |
+| Leisure | +0.10 | -0.06 | -0.02 | 0.00 | +0.02 | +0.03 |
+| Health | +0.06 | -0.04 | -0.02 | +0.04 | 0.00 | +0.02 |
+| Development | +0.04 | -0.02 | -0.01 | +0.03 | +0.02 | 0.00 |
+
+##### 3c) Wellness interactions \(k^{(W)}_{c,u}\)
+
+| Target \ Source | Housing | Work (Current) | Work (Capacity) | Leisure | Health | Development |
+|---|---:|---:|---:|---:|---:|---:|
+| Housing | 0.00 | -0.14 | -0.05 | +0.08 | +0.20 | +0.05 |
+| Work (Current) | -0.08 | 0.00 | +0.02 | +0.05 | +0.10 | +0.03 |
+| Work (Capacity) | -0.03 | +0.02 | 0.00 | +0.04 | +0.08 | +0.06 |
+| Leisure | +0.05 | -0.05 | -0.02 | 0.00 | +0.06 | +0.03 |
+| Health | +0.10 | -0.04 | -0.02 | +0.06 | 0.00 | +0.04 |
+| Development | +0.03 | -0.02 | -0.01 | +0.02 | +0.04 | 0.00 |
+
+**How to read a cell:** a positive value means “being closer increases that metric”; negative values mean “being closer decreases that metric.” The distance weighting \(w_{ij}\) ensures effects taper off with road distance.
+
+#### 4) Optional rule tables (piecewise penalties)
+
+Some interactions are better modeled as explicit rules rather than linear coefficients. Example: “Factory too close to housing causes a sharp penalty.”
+
+| Rule | Applies when | Effect | Example |
+|---|---|---|---|
+| Factory proximity penalty | \(d_{ij} \le r\) where Factory→Housing | \(H \mathrel{-}= p\cdot(1-d_{ij}/r)\) | \(r=4,\; p=8\) |
+| Leisure access requirement | Housing→Leisure within radius | if none, reduce happiness baseline | \(r=6\) |
+| Minimum health coverage | Housing→Health within radius | if none, reduce wellness baseline | \(r=7\) |
+
+In-app, these can be edited as rows with dropdowns (source/target), numeric fields (radius/penalty), and enable/disable toggles.
+
+#### 5) Export format (suggested)
+
+The editor should persist a “model” object such as:
+
+- `globals`: \(d_{\max}, \lambda, \theta\), bounds
+- `base`: category → \([b^{(I)}, b^{(H)}, b^{(W)}]\)
+- `pairwise`: metric → matrix values (or sparse list)
+- `rules`: list of optional piecewise rules
+
+This model should be:
+- saved to localStorage automatically
+- exportable/importable via JSON
+- applied live to metrics + graph generation
+
 ## Running Locally
 
 Because the code uses ES modules, run via a local server:
