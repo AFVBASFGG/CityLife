@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Life City Builder (Isometric)</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Cytoscape (MIT) for interactive graph -->
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">🏙️</div>
+        <div>
+          <div class="title">Life City Builder</div>
+          <div class="subtitle">Build your life like a city: balance work & self-care.</div>
+        </div>
+      </div>
+
+      <div class="hud">
+        <div class="metric">
+          <div class="metric-label">
+            <span>Income</span><span id="incomeVal" class="metric-val">0</span>
+          </div>
+          <div class="bar"><div id="incomeBar" class="fill"></div></div>
+          <canvas id="incomeSpark" width="140" height="26"></canvas>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">
+            <span>Happiness</span><span id="happyVal" class="metric-val">0</span>
+          </div>
+          <div class="bar"><div id="happyBar" class="fill"></div></div>
+          <canvas id="happySpark" width="140" height="26"></canvas>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">
+            <span>Wellness</span><span id="wellVal" class="metric-val">0</span>
+          </div>
+          <div class="bar"><div id="wellBar" class="fill"></div></div>
+          <canvas id="wellSpark" width="140" height="26"></canvas>
+        </div>
+      </div>
+    </header>
+
+    <aside class="toolbar">
+      <div class="toolgroup">
+        <div class="toolgroup-title">Tools</div>
+        <button class="toolbtn" data-tool="road" title="Paint roads">🛣️ Road</button>
+        <button class="toolbtn" data-tool="move" title="Move buildings (drag)">✋ Move</button>
+        <button class="toolbtn danger" data-tool="bulldoze" title="Remove buildings/roads">🚜 Bulldozer</button>
+      </div>
+
+      <div class="toolgroup">
+        <div class="toolgroup-title">Build</div>
+        <div class="gridbtns">
+          <button class="buildbtn" data-build="house">🏠 House</button>
+          <button class="buildbtn" data-build="school">🏫 School</button>
+          <button class="buildbtn" data-build="office">🏢 Office</button>
+          <button class="buildbtn" data-build="factory">🏭 Factory</button>
+          <button class="buildbtn" data-build="hospital">🏥 Hospital</button>
+          <button class="buildbtn" data-build="mall">🛍️ Mall</button>
+          <button class="buildbtn" data-build="park">🌳 Park</button>
+        </div>
+      </div>
+
+      <div class="toolgroup">
+        <div class="toolgroup-title">Views</div>
+        <button id="graphBtn" class="toolbtn glow">🧠 Relationship Graph</button>
+        <button id="resetBtn" class="toolbtn">🔄 Reset to Example City</button>
+      </div>
+
+      <div class="legend">
+        <div class="legend-title">Rules</div>
+        <ul>
+          <li><b>Buildings must touch a road</b> to be Active.</li>
+          <li>Influence strength decays with <b>shortest road distance</b>.</li>
+          <li>🏢 Offices need 🏠 Houses nearby for workers → income.</li>
+          <li>🏭 Factories = current income but hurt happiness if too close.</li>
+          <li>🌳 Parks / 🛍️ Malls boost happiness near houses and help attract workers.</li>
+          <li>🏥 Hospitals boost wellness near houses.</li>
+        </ul>
+      </div>
+
+      <div class="hint">
+        <div><b>Pan:</b> Right-drag / Middle-drag</div>
+        <div><b>Zoom:</b> Mouse wheel</div>
+        <div><b>Rotate:</b> Q / E</div>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <canvas id="gameCanvas"></canvas>
+      <div id="toast" class="toast hidden"></div>
+    </main>
+  </div>
+
+  <!-- Graph Modal -->
+  <div id="graphModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Relationship Graph</div>
+          <div class="modal-subtitle">Edges show distance-diminished influence via roads.</div>
+        </div>
+        <button id="closeGraph" class="toolbtn">✖ Close</button>
+      </div>
+      <div class="modal-body">
+        <div id="cy" class="cy"></div>
+        <div id="graphTooltip" class="graphTooltip hidden"></div>
+        <div class="graphSide">
+          <div class="sideCard">
+            <div class="sideTitle">Selected</div>
+            <div id="selectedInfo" class="sideText">Click a node or edge.</div>
+          </div>
+          <div class="sideCard">
+            <div class="sideTitle">How to read it</div>
+            <div class="sideText">
+              <p><b>Nodes</b> are buildings (tasks/activities).</p>
+              <p><b>Edges</b> exist when influence is meaningful (close enough by road).</p>
+              <p>Edge thickness scales with influence weight.</p>
+              <p>Try moving buildings to change distances and rebalance life.</p>
+            </div>
+          </div>
+          <div class="sideCard">
+            <div class="sideTitle">Metrics snapshot</div>
+            <div id="metricSnapshot" class="sideText"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
