@@ -5,6 +5,7 @@ import { RoadGraph } from "./pathfinding.js";
 import { computeMetrics } from "./metrics.js";
 import { UI } from "./ui.js";
 import { openGraphModal } from "./graphView.js";
+import { initDebug, logEvent, captureCanvasScreenshot } from "./debugTools.js";
 
 // -----------------------
 // Game State
@@ -171,6 +172,7 @@ function setupToolbar(state, ui) {
         state.selected = null;
         toolBtns.forEach(b => b.classList.toggle("active", b.dataset.tool === tool));
         // build tool visual state handled on build button click
+        logEvent("info", "tool_changed", { tool });
     }
 
     function setBuild(type) {
@@ -179,6 +181,7 @@ function setupToolbar(state, ui) {
         toolBtns.forEach(b => b.classList.toggle("active", false));
         buildBtns.forEach(b => b.classList.toggle("active", b.dataset.build === type));
         ui.showToast(`Build: ${type}`);
+        logEvent("info", "build_selected", { type });
     }
 
     toolBtns.forEach(btn => {
@@ -206,6 +209,9 @@ const canvas = document.getElementById("gameCanvas");
 const ui = new UI();
 const state = new GameState();
 loadExampleCity(state);
+
+initDebug();
+logEvent("info", "game_init", { gridW: state.gridW, gridH: state.gridH });
 
 const renderer = new IsoRenderer(canvas, state);
 setupToolbar(state, ui);
@@ -241,6 +247,7 @@ let isPanning = false;
 let panBtn = 2; // right mouse
 let lastMouse = { x: 0, y: 0 };
 let isDraggingBuilding = false;
+let dragStart = null;
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -298,15 +305,18 @@ canvas.addEventListener("mousedown", (e) => {
         if (ok) {
             recompute();
             ui.showToast(cell.road ? "Road removed" : "Road placed");
+            logEvent("info", "road_toggled", { x: g.x, y: g.y, road: state.grid[g.y][g.x].road });
         }
     }
     else if (state.tool === "build") {
         const res = state.placeBuilding(state.buildType, g.x, g.y);
         if (!res.ok) {
             ui.showToast(res.reason);
+            logEvent("warn", "build_failed", { type: state.buildType, x: g.x, y: g.y, reason: res.reason });
         } else {
             recompute();
             ui.showToast(`${state.buildType} placed`);
+            logEvent("info", "build_placed", { type: state.buildType, x: g.x, y: g.y, id: res.id });
         }
     }
     else if (state.tool === "bulldoze") {
@@ -315,15 +325,19 @@ canvas.addEventListener("mousedown", (e) => {
         if (removedB || removedR) {
             recompute();
             ui.showToast("Removed");
+            logEvent("info", "bulldozed", { x: g.x, y: g.y, building: removedB, road: removedR });
         } else {
             ui.showToast("Nothing to remove");
+            logEvent("warn", "bulldoze_empty", { x: g.x, y: g.y });
         }
     }
     else if (state.tool === "move") {
         if (b) {
             state.selected = { kind: "building", id: b.id };
             isDraggingBuilding = true;
+            dragStart = { id: b.id, x: b.x, y: b.y };
             ui.showToast("Drag to move");
+            logEvent("info", "move_start", { id: b.id, x: b.x, y: b.y });
         } else {
             state.selected = null;
         }
@@ -333,6 +347,14 @@ canvas.addEventListener("mousedown", (e) => {
 canvas.addEventListener("mouseup", (e) => {
     isPanning = false;
     isDraggingBuilding = false;
+    if (dragStart) {
+        const b = state.buildings.get(dragStart.id);
+        if (b) {
+            const moved = b.x !== dragStart.x || b.y !== dragStart.y;
+            logEvent("info", "move_end", { id: b.id, from: { x: dragStart.x, y: dragStart.y }, to: { x: b.x, y: b.y }, moved });
+        }
+        dragStart = null;
+    }
 });
 
 canvas.addEventListener("wheel", (e) => {
@@ -345,6 +367,7 @@ canvas.addEventListener("wheel", (e) => {
 document.getElementById("graphBtn").addEventListener("click", () => {
     // refresh metrics before opening graph
     recompute();
+    logEvent("info", "graph_open", { buildings: state.buildings.size });
     openGraphModal(state, roadGraph, metrics);
 });
 
@@ -352,6 +375,12 @@ document.getElementById("resetBtn").addEventListener("click", () => {
     loadExampleCity(state);
     recompute();
     ui.showToast("Loaded example city");
+    logEvent("info", "reset_example_city");
+});
+
+document.getElementById("screenshotBtn").addEventListener("click", async () => {
+    await captureCanvasScreenshot(canvas, "main");
+    ui.showToast("Screenshot saved");
 });
 
 const graphModal = document.getElementById("graphModal");

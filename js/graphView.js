@@ -1,9 +1,11 @@
 import { CONFIG } from "./config.js";
 import { expFalloff, round2, clamp } from "./utils.js";
+import { logEvent, captureGraphScreenshot } from "./debugTools.js";
 
 export function openGraphModal(state, roadGraph, metrics) {
     const modal = document.getElementById("graphModal");
     const closeBtn = document.getElementById("closeGraph");
+    const shotBtn = document.getElementById("graphShotBtn");
     const info = document.getElementById("selectedInfo");
     const snap = document.getElementById("metricSnapshot");
 
@@ -21,14 +23,14 @@ export function openGraphModal(state, roadGraph, metrics) {
 
     // node styling by category
     function nodeStyle(type) {
-        if (type === "house") return { bg: "#6EA6FF" };
-        if (type === "office") return { bg: "#42E6B0" };
-        if (type === "factory") return { bg: "#FF6B7D" };
-        if (type === "park") return { bg: "#4CFF95" };
-        if (type === "mall") return { bg: "#FFD06A" };
-        if (type === "hospital") return { bg: "#69E9FF" };
-        if (type === "school") return { bg: "#B79CFF" };
-        return { bg: "#BFD3FF" };
+        if (type === "house") return { bg: "#7E9BFF" };
+        if (type === "office") return { bg: "#67D8BE" };
+        if (type === "factory") return { bg: "#E17582" };
+        if (type === "park") return { bg: "#6BE5A0" };
+        if (type === "mall") return { bg: "#D9B26A" };
+        if (type === "hospital") return { bg: "#7CB8E6" };
+        if (type === "school") return { bg: "#9C8CE8" };
+        return { bg: "#9FB3D9" };
     }
 
     const nodes = buildings.map(b => {
@@ -102,108 +104,90 @@ export function openGraphModal(state, roadGraph, metrics) {
             name: "cose",
             animate: true,
             randomize: false,
-            idealEdgeLength: 220,
-            nodeRepulsion: 14000,
-            nodeOverlap: 10,
-            gravity: 0.12,
-            numIter: 1200,
-            coolingFactor: 0.98
+            idealEdgeLength: 140,
+            nodeRepulsion: 9000,
+            nodeOverlap: 6,
+            gravity: 0.16,
+            numIter: 900,
+            coolingFactor: 0.985
         },
         style: [
             {
                 selector: "node",
                 style: {
-                    "width": 18,
-                    "height": 18,
-                    "background-color": "data(bg)",
-                    "border-width": 1,
-                    "border-color": "rgba(255,255,255,0.20)",
-                    "shadow-blur": 12,
-                    "shadow-color": "rgba(120,140,255,0.18)",
-                    "shadow-opacity": 0.9,
-                    "shadow-offset-y": 4,
-
-                    // Hide labels by default (Obsidian vibe)
-                    "label": "",
-                    "text-valign": "center",
-                    "text-halign": "center",
-                    "font-size": 12,
-                    "color": "rgba(255,255,255,0.85)",
-                    "text-background-color": "rgba(0,0,0,0.55)",
-                    "text-background-opacity": 1,
-                    "text-background-padding": 4,
-                    "text-background-shape": "round-rectangle"
-                }
-            },
-
-            // emoji overlay using "background-image" is messy; keep emoji as label on hover/selection:
-            {
-                selector: "node",
-                style: {
-                    "width": 14,
-                    "height": 14,
+                    "width": 9,
+                    "height": 9,
                     "shape": "ellipse",
                     "background-color": "data(bg)",
-                    "border-width": 1,
-                    "border-color": "rgba(255,255,255,0.22)",
+                    "background-opacity": 0.9,
+                    "border-width": 0.5,
+                    "border-color": "rgba(255,255,255,0.18)",
 
-                    // depth
-                    "shadow-blur": 18,
-                    "shadow-color": "rgba(0,0,0,0.35)",
-                    "shadow-opacity": 0.9,
-                    "shadow-offset-y": 6,
+                    // subtle glow + depth
+                    "shadow-blur": 9,
+                    "shadow-color": "rgba(0,0,0,0.55)",
+                    "shadow-opacity": 0.75,
+                    "shadow-offset-y": 2,
+                    "underlay-color": "rgba(120,140,255,0.28)",
+                    "underlay-opacity": 0.18,
+                    "underlay-padding": 1.4,
 
-                    // no label; we'll use tooltip overlay
+                    // no label; tooltip overlay is used instead
                     "label": "",
-                    "overlay-opacity": 0,
+                    "overlay-opacity": 0
                 }
             },
             {
                 selector: "node:hover",
                 style: {
-                    "width": 20,
-                    "height": 20,
-                    "border-width": 2,
-                    "border-color": "rgba(120,140,255,0.85)",
-                    "shadow-color": "rgba(120,140,255,0.28)"
+                    "width": 12,
+                    "height": 12,
+                    "border-width": 1.2,
+                    "border-color": "rgba(120,140,255,0.65)",
+                    "underlay-opacity": 0.32,
+                    "shadow-color": "rgba(120,140,255,0.22)"
                 }
             },
             {
                 selector: "node:selected",
                 style: {
-                    "width": 22,
-                    "height": 22,
-                    "border-width": 2,
-                    "border-color": "rgba(53,255,154,0.90)",
-                    "shadow-color": "rgba(53,255,154,0.22)"
+                    "width": 13,
+                    "height": 13,
+                    "border-width": 1.4,
+                    "border-color": "rgba(53,255,154,0.80)",
+                    "underlay-color": "rgba(53,255,154,0.45)",
+                    "underlay-opacity": 0.35,
+                    "shadow-color": "rgba(53,255,154,0.18)"
                 }
             },
             {
                 selector: "node.inactive",
                 style: {
-                    "opacity": 0.30,
-                    "border-color": "rgba(255,180,120,0.40)"
+                    "opacity": 0.28,
+                    "border-color": "rgba(255,180,120,0.35)",
+                    "underlay-opacity": 0.08
                 }
             },
 
             {
                 selector: "edge",
                 style: {
-                    "width": "mapData(weight, 0.08, 1.0, 0.35, 1.6)",
-                    "line-color": "rgba(120,140,255,0.28)",
-                    "opacity": 0.55,
+                    "width": "mapData(weight, 0.08, 1.0, 0.2, 0.9)",
+                    "line-color": "mapData(weight, 0.08, 1.0, #2B354A, #7FA4E6)",
+                    "opacity": "mapData(weight, 0.08, 1.0, 0.10, 0.48)",
                     "curve-style": "bezier",
-                    "control-point-step-size": 30,
-                    "line-cap": "round"
+                    "control-point-step-size": 60,
+                    "line-cap": "round",
+                    "overlay-opacity": 0
                 }
             },
             {
                 selector: "edge:hover",
-                style: { "opacity": 0.9, "line-color": "rgba(120,140,255,0.55)" }
+                style: { "opacity": 0.85, "line-color": "rgba(160,185,255,0.70)" }
             },
             {
                 selector: "edge:selected",
-                style: { "opacity": 1, "line-color": "rgba(53,255,154,0.85)", "width": 2.2 }
+                style: { "opacity": 1, "line-color": "rgba(53,255,154,0.85)", "width": 1.4 }
             }
         ]
 
@@ -222,9 +206,20 @@ export function openGraphModal(state, roadGraph, metrics) {
 
     cy.on("mousemove", "node", (evt) => {
         const pos = evt.renderedPosition;
-        // container-relative positioning
-        tip.style.left = `${pos.x}px`;
-        tip.style.top = `${pos.y}px`;
+        const rect = cyEl.getBoundingClientRect();
+        const tipRect = tip.getBoundingClientRect();
+
+        const pad = 10;
+        let x = pos.x + 12;
+        let y = pos.y - 8;
+
+        const maxX = rect.width - tipRect.width - pad;
+        const maxY = rect.height - tipRect.height - pad;
+        x = Math.max(pad, Math.min(x, maxX));
+        y = Math.max(pad, Math.min(y, maxY));
+
+        tip.style.left = `${x}px`;
+        tip.style.top = `${y}px`;
     });
 
     cy.on("tap", "node", (evt) => {
@@ -236,6 +231,7 @@ export function openGraphModal(state, roadGraph, metrics) {
       Move this building closer/farther to rebalance influence.
     </div>
   `;
+                logEvent("info", "graph_node_selected", { id: n.id, type: n.type, active: n.active });
     });
 
     cy.on("tap", "edge", (evt) => {
@@ -248,31 +244,54 @@ export function openGraphModal(state, roadGraph, metrics) {
         Shorter road distance → stronger effect.
       </div>
     `;
+                logEvent("info", "graph_edge_selected", { id: e.id, distance: e.distance, weight: round2(e.weight) });
     });
 
-    // Jiggle: gently reheat layout when user drags a node
+    // Jiggle: tiny local animation (no layout) to avoid whole-graph reshapes
     let jiggleTimer = null;
-    cy.on("dragfree", "node", () => {
+    cy.on("dragfree", "node", (evt) => {
         if (jiggleTimer) clearTimeout(jiggleTimer);
 
-        const layout = cy.layout({
-            name: "cose",
-            animate: true,
-            randomize: false,
-            idealEdgeLength: 180,
-            nodeRepulsion: 12000,
-            gravity: 0.10,
-            numIter: 350,
-            coolingFactor: 0.99
+        const dragged = evt.target;
+        const neighborhood = dragged.closedNeighborhood("node");
+
+        // stop any in-flight animations
+        try { neighborhood.stop(); } catch { }
+
+        const base = new Map();
+        neighborhood.forEach(n => base.set(n.id(), { ...n.position() }));
+
+        // first: subtle nudge
+        neighborhood.forEach(n => {
+            if (n.id() === dragged.id()) return;
+            const pos = base.get(n.id());
+            const dx = (Math.random() - 0.5) * 6;
+            const dy = (Math.random() - 0.5) * 6;
+            n.animate({
+                position: { x: pos.x + dx, y: pos.y + dy },
+                duration: 120,
+                easing: "ease-out"
+            });
         });
 
-        layout.run();
-
-        // stop it after a moment so it settles
+        // then: settle back
         jiggleTimer = setTimeout(() => {
-            try { layout.stop(); } catch { }
-        }, 650);
+            neighborhood.forEach(n => {
+                if (n.id() === dragged.id()) return;
+                const pos = base.get(n.id());
+                n.animate({
+                    position: { x: pos.x, y: pos.y },
+                    duration: 220,
+                    easing: "ease-in-out"
+                });
+            });
+        }, 140);
     });
+
+    async function onShot() {
+        await captureGraphScreenshot(cy, "graph");
+    }
+    shotBtn.addEventListener("click", onShot);
 
     function close() {
         modal.classList.add("hidden");
@@ -280,8 +299,10 @@ export function openGraphModal(state, roadGraph, metrics) {
         closeBtn.removeEventListener("click", close);
         modal.removeEventListener("click", outside);
         window.removeEventListener("keydown", esc);
+        shotBtn.removeEventListener("click", onShot);
         // Cytoscape GC hint
         try { cy.destroy(); } catch { }
+        logEvent("info", "graph_close");
     }
 
     function outside(e) {
