@@ -135,7 +135,7 @@ The advisor panel can support both “city edits” (model changes) and “real-
 - “Identify any ‘burnout risk’ clusters (high work influence, low wellness support). Recommend a rebalancing.”
 
 **5) Model calibration (meta)**
-- “The simulation feels too punitive/too generous. Suggest adjustments to \(\lambda\), \(d_{\max}\), and key coefficients to match a realistic week of effort.”
+- “The simulation feels too punitive/too generous. Suggest adjustments to $\lambda$, $d_{\max}$, and key coefficients to match a realistic week of effort.”
 
 #### Prompt patterns (recommended structure)
 
@@ -160,7 +160,7 @@ LLMs perform best when the simulation state is summarized in a **compact, struct
 
 **Layer 0: Global**
 - Grid size
-- Global parameters: \(\lambda\), \(d_{\max}\), \(\theta\)
+- Global parameters: $\lambda$, $d_{\max}$, $\theta$
 - Current metrics: Income/Happiness/Wellness (+ short history or deltas)
 
 **Layer 1: Nodes**
@@ -187,7 +187,7 @@ LLMs perform best when the simulation state is summarized in a **compact, struct
 
 For large cities, a full edge list becomes noisy. A common strategy:
 
-- Keep top \(N\) edges per node by weight (e.g., \(N=4\))
+- Keep top $N$ edges per node by weight (e.g., $N=4$)
 - Deduplicate edges by id
 - Report any nodes that have *no* edges (isolated) explicitly
 
@@ -250,64 +250,58 @@ CityLife treats the city as a weighted influence network.
 
 ### Notation
 
-Let \( \mathcal{B} \) be the set of buildings.
+Let $\mathcal{B}$ be the set of buildings.
 
-Each building \( i \in \mathcal{B} \) has:
-- type/category \( t(i) \)
-- location \( (x_i, y_i) \)
-- active flag \( a_i \in \{0,1\} \) (active if adjacent to a road)
-- maintenance/condition factor \( m_i \in [0,1] \) (1 = fully maintained, 0 = disrepair)
+Each building $i \in \mathcal{B}$ has:
+- type/category $t(i)$
+- location $(x_i, y_i)$
+- active flag $a_i \in \{0,1\}$ (active if adjacent to a road)
+- maintenance/condition factor $m_i \in [0,1]$ (1 = fully maintained, 0 = disrepair)
 - optional metadata (later: title, status, dates, etc.)
 
-Define road shortest-path distance \( d_{ij} \) between buildings \( i \) and \( j \) as:
-- choose road-adjacent tiles near \( i \) and \( j \)
+Define road shortest-path distance $d_{ij}$ between buildings $i$ and $j$ as:
+- choose road-adjacent tiles near $i$ and $j$
 - run BFS on road tiles
 - take the minimum path length across adjacency choices
-- if unreachable: \( d_{ij} = \infty \)
+- if unreachable: $d_{ij} = \infty$
 
 ### Distance falloff and edge weights
 
 Influence decays with road distance via an exponential falloff:
 
-\[
-w_{ij} =
+$$w_{ij} =
 \begin{cases}
 a_i a_j \cdot \exp\!\left(-\frac{d_{ij}}{\lambda}\right) & \text{if } d_{ij} \le d_{\max} \\
 0 & \text{otherwise}
-\end{cases}
-\]
+\end{cases}$$
 
 Where:
-- \( \lambda \) is the falloff scale (CONFIG.influenceFalloff)
-- \( d_{\max} \) is the maximum useful distance (CONFIG.maxUsefulDistance)
+- $\lambda$ is the falloff scale (CONFIG.influenceFalloff)
+- $d_{\max}$ is the maximum useful distance (CONFIG.maxUsefulDistance)
 
-Edges in the relationship graph are typically created when \( w_{ij} \ge \theta \) (CONFIG.influenceThreshold).
+Edges in the relationship graph are typically created when $w_{ij} \ge \theta$ (CONFIG.influenceThreshold).
 
 ### Metrics vector
 
 Let the player’s life metrics be a vector:
 
-\[
-\mathbf{M} =
+$$\mathbf{M} =
 \begin{bmatrix}
 I \\ H \\ W
-\end{bmatrix}
-\]
+\end{bmatrix}$$
 
 Where:
-- \( I \): Income
-- \( H \): Happiness
-- \( W \): Wellness
+- $I$: Income
+- $H$: Happiness
+- $W$: Wellness
 
 The simulator computes metrics as a baseline plus local (node) effects plus pairwise (edge) effects.
 
 ### Node (building) contributions
 
-Each category \( c \) has a base contribution vector \( \mathbf{b}_c \):
+Each category $c$ has a base contribution vector $\mathbf{b}_c$:
 
-\[
-\Delta \mathbf{M}_{\text{node}} = \sum_{i \in \mathcal{B}} a_i \, m_i \, \mathbf{b}_{t(i)}
-\]
+$$\Delta \mathbf{M}_{\text{node}} = \sum_{i \in \mathcal{B}} a_i \, m_i \, \mathbf{b}_{t(i)}$$
 
 Examples:
 - Housing may contribute positively to stability (H/W) and enable work capacity.
@@ -319,22 +313,18 @@ Examples:
 
 Categories also interact pairwise through a 3D “interaction tensor”:
 
-\[
-\mathbf{K}_{c,u} =
+$$\mathbf{K}_{c,u} =
 \begin{bmatrix}
 k^{(I)}_{c,u} \\
 k^{(H)}_{c,u} \\
 k^{(W)}_{c,u}
-\end{bmatrix}
-\]
+\end{bmatrix}$$
 
-Meaning: “how much category \( u \) influences category \( c \)” for each metric.
+Meaning: “how much category $u$ influences category $c$” for each metric.
 
 Then total pairwise effect is:
 
-\[
-\Delta \mathbf{M}_{\text{pair}} = \sum_{i \ne j} w_{ij}\, m_i \, m_j \, \mathbf{K}_{t(i),\,t(j)}
-\]
+$$\Delta \mathbf{M}_{\text{pair}} = \sum_{i \ne j} w_{ij}\, m_i \, m_j \, \mathbf{K}_{t(i),\,t(j)}$$
 
 This term encodes effects like:
 - Offices benefit from nearby housing (workers) and nearby leisure (retention).
@@ -346,26 +336,22 @@ This term encodes effects like:
 
 A simple bounded update is:
 
-\[
-\mathbf{M} \leftarrow \mathrm{clip}\!\left(\mathbf{M}_0 + \Delta \mathbf{M}_{\text{node}} + \Delta \mathbf{M}_{\text{pair}},\; \mathbf{M}_{\min},\; \mathbf{M}_{\max}\right)
-\]
+$$\mathbf{M} \leftarrow \mathrm{clip}\!\left(\mathbf{M}_0 + \Delta \mathbf{M}_{\text{node}} + \Delta \mathbf{M}_{\text{pair}},\; \mathbf{M}_{\min},\; \mathbf{M}_{\max}\right)$$
 
-Where clip clamps each component to desired bounds (e.g., happiness and wellness in \([0,100]\)).
+Where clip clamps each component to desired bounds (e.g., happiness and wellness in $[0,100]$).
 
 ### Disrepair dynamics (maintenance decay)
 
-Each building carries a maintenance/condition factor \( m_i \in [0,1] \) that decays over time if no effort is logged against it. A minimal update rule can be:
+Each building carries a maintenance/condition factor $m_i \in [0,1]$ that decays over time if no effort is logged against it. A minimal update rule can be:
 
-\[
-m_i(t+1) = \mathrm{clip}\big(m_i(t) + \alpha\,\ell_i(t) - \beta,\; 0,\; 1\big)
-\]
+$$m_i(t+1) = \mathrm{clip}\big(m_i(t) + \alpha\,\ell_i(t) - \beta,\; 0,\; 1\big)$$
 
 Where:
-- \( \ell_i(t) \in [0,1] \) is “maintenance time logged” for building \( i \) during the step.
-- \( \alpha \) is the repair rate.
-- \( \beta \) is the decay rate.
+- $\ell_i(t) \in [0,1]$ is “maintenance time logged” for building $i$ during the step.
+- $\alpha$ is the repair rate.
+- $\beta$ is the decay rate.
 
-If \( m_i \) falls below a critical threshold \( m_{\text{fail}} \), the building can enter a “failure” state (e.g., fire/collapse) and its contributions drop to zero until restored.
+If $m_i$ falls below a critical threshold $m_{\text{fail}}$, the building can enter a “failure” state (e.g., fire/collapse) and its contributions drop to zero until restored.
 
 > **Note:** The current implementation uses practical heuristics rather than a fully parameterized tensor everywhere.  
 > The roadmap includes a spreadsheet model editor to externalize these weights.
@@ -376,16 +362,16 @@ If \( m_i \) falls below a critical threshold \( m_{\text{fail}} \), the buildin
 
 A near-term goal is to add a button that opens a spreadsheet-style editor (in-app) to tune:
 
-1. Category base contributions \( \mathbf{b}_c \)
-2. Pairwise interaction coefficients \( \mathbf{K}_{c,u} \)
-3. Thresholds \( d_{\max}, \lambda, \theta \)
+1. Category base contributions $\mathbf{b}_c$
+2. Pairwise interaction coefficients $\mathbf{K}_{c,u}$
+3. Thresholds $d_{\max}, \lambda, \theta$
 4. Optional “hard rules” (e.g., factory penalty radius around housing)
 
 ### Proposed UX
 - A toolbar button: **Model Editor**
 - Opens a modal with a grid/table:
-  - rows: influencing category \( u \)
-  - columns: influenced category \( c \)
+  - rows: influencing category $u$
+  - columns: influenced category $c$
   - each cell holds a 3-vector (Income/Happiness/Wellness) or separate tabs per metric
 - Changes apply live; include “Reset to defaults” and “Export/Import model JSON”
 
@@ -404,17 +390,17 @@ The “Model Editor” can be implemented as a spreadsheet-style grid. Below are
 
 | Parameter | Description | Example | Notes |
 |---|---|---:|---|
-| \(d_{\max}\) | Max useful road distance for influence | 18 | Edges beyond this distance are ignored |
-| \(\lambda\) | Exponential falloff scale | 7.5 | Larger = slower decay with distance |
-| \(\theta\) | Edge threshold (min \(w_{ij}\)) | 0.12 | Higher = fewer edges (less “hairball”) |
-| \(H_{\min},H_{\max}\) | Happiness bounds | 0, 100 | Clamp after update |
-| \(W_{\min},W_{\max}\) | Wellness bounds | 0, 100 | Clamp after update |
+| $d_{\max}$ | Max useful road distance for influence | 18 | Edges beyond this distance are ignored |
+| $\lambda$ | Exponential falloff scale | 7.5 | Larger = slower decay with distance |
+| $\theta$ | Edge threshold (min $w_{ij}$) | 0.12 | Higher = fewer edges (less “hairball”) |
+| $H_{\min},H_{\max}$ | Happiness bounds | 0, 100 | Clamp after update |
+| $W_{\min},W_{\max}$ | Wellness bounds | 0, 100 | Clamp after update |
 
-#### 2) Category base contributions \(\mathbf{b}_c=[b_c^{(I)}, b_c^{(H)}, b_c^{(W)}]\)
+#### 2) Category base contributions $\mathbf{b}_c=[b_c^{(I)}, b_c^{(H)}, b_c^{(W)}]$
 
 Each active building contributes a base vector to the global metrics.
 
-| Category | \(b^{(I)}\) | \(b^{(H)}\) | \(b^{(W)}\) | Interpretation |
+| Category | $b^{(I)}$ | $b^{(H)}$ | $b^{(W)}$ | Interpretation |
 |---|---:|---:|---:|---|
 | Housing | 0.0 | +0.6 | +0.4 | Stability/availability baseline |
 | Work (Current) | +2.0 | -0.6 | -0.4 | Immediate income with strain |
@@ -425,13 +411,13 @@ Each active building contributes a base vector to the global metrics.
 
 In the UI, “Category” can be a dropdown; values are numeric with ranges and tooltips.
 
-#### 3) Pairwise interaction coefficients \(\mathbf{K}_{c,u}\)
+#### 3) Pairwise interaction coefficients $\mathbf{K}_{c,u}$
 
-These coefficients define how a *source* category \(u\) influences a *target* category \(c\), scaled by distance weight \(w_{ij}\).
+These coefficients define how a *source* category $u$ influences a *target* category $c$, scaled by distance weight $w_{ij}$.
 
 A practical editor approach is to provide **separate tables per metric** (Income/Happiness/Wellness), plus a “sign convention” guide.
 
-##### 3a) Income interactions \(k^{(I)}_{c,u}\)
+##### 3a) Income interactions $k^{(I)}_{c,u}$
 
 | Target \ Source | Housing | Work (Current) | Work (Capacity) | Leisure | Health | Development |
 |---|---:|---:|---:|---:|---:|---:|
@@ -442,7 +428,7 @@ A practical editor approach is to provide **separate tables per metric** (Income
 | Health | 0.00 | +0.03 | +0.03 | +0.02 | 0.00 | +0.02 |
 | Development | +0.05 | +0.04 | +0.06 | +0.03 | +0.03 | 0.00 |
 
-##### 3b) Happiness interactions \(k^{(H)}_{c,u}\)
+##### 3b) Happiness interactions $k^{(H)}_{c,u}$
 
 | Target \ Source | Housing | Work (Current) | Work (Capacity) | Leisure | Health | Development |
 |---|---:|---:|---:|---:|---:|---:|
@@ -453,7 +439,7 @@ A practical editor approach is to provide **separate tables per metric** (Income
 | Health | +0.06 | -0.04 | -0.02 | +0.04 | 0.00 | +0.02 |
 | Development | +0.04 | -0.02 | -0.01 | +0.03 | +0.02 | 0.00 |
 
-##### 3c) Wellness interactions \(k^{(W)}_{c,u}\)
+##### 3c) Wellness interactions $k^{(W)}_{c,u}$
 
 | Target \ Source | Housing | Work (Current) | Work (Capacity) | Leisure | Health | Development |
 |---|---:|---:|---:|---:|---:|---:|
@@ -464,7 +450,7 @@ A practical editor approach is to provide **separate tables per metric** (Income
 | Health | +0.10 | -0.04 | -0.02 | +0.06 | 0.00 | +0.04 |
 | Development | +0.03 | -0.02 | -0.01 | +0.02 | +0.04 | 0.00 |
 
-**How to read a cell:** a positive value means “being closer increases that metric”; negative values mean “being closer decreases that metric.” The distance weighting \(w_{ij}\) ensures effects taper off with road distance.
+**How to read a cell:** a positive value means “being closer increases that metric”; negative values mean “being closer decreases that metric.” The distance weighting $w_{ij}$ ensures effects taper off with road distance.
 
 #### 4) Optional rule tables (piecewise penalties)
 
@@ -472,9 +458,9 @@ Some interactions are better modeled as explicit rules rather than linear coeffi
 
 | Rule | Applies when | Effect | Example |
 |---|---|---|---|
-| Factory proximity penalty | \(d_{ij} \le r\) where Factory→Housing | \(H \mathrel{-}= p\cdot(1-d_{ij}/r)\) | \(r=4,\; p=8\) |
-| Leisure access requirement | Housing→Leisure within radius | if none, reduce happiness baseline | \(r=6\) |
-| Minimum health coverage | Housing→Health within radius | if none, reduce wellness baseline | \(r=7\) |
+| Factory proximity penalty | $d_{ij} \le r$ where Factory→Housing | $H \mathrel{-}= p\cdot(1-d_{ij}/r)$ | $r=4,\; p=8$ |
+| Leisure access requirement | Housing→Leisure within radius | if none, reduce happiness baseline | $r=6$ |
+| Minimum health coverage | Housing→Health within radius | if none, reduce wellness baseline | $r=7$ |
 
 In-app, these can be edited as rows with dropdowns (source/target), numeric fields (radius/penalty), and enable/disable toggles.
 
@@ -482,8 +468,8 @@ In-app, these can be edited as rows with dropdowns (source/target), numeric fiel
 
 The editor should persist a “model” object such as:
 
-- `globals`: \(d_{\max}, \lambda, \theta\), bounds
-- `base`: category → \([b^{(I)}, b^{(H)}, b^{(W)}]\)
+- `globals`: $d_{\max}, \lambda, \theta$, bounds
+- `base`: category → $[b^{(I)}, b^{(H)}, b^{(W)}]$
 - `pairwise`: metric → matrix values (or sparse list)
 - `rules`: list of optional piecewise rules
 
