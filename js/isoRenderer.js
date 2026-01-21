@@ -190,10 +190,11 @@ export class IsoRenderer {
     const tw = CONFIG.tileW * this.camera.zoom;
     const th = CONFIG.tileH * this.camera.zoom;
 
-    // subtle checker-ish ground with gradient
-    const base = (x + y) % 2 === 0 ? 0.05 : 0.03;
-    const fill = `rgba(255,255,255,${base})`;
-    const edge = "rgba(255,255,255,0.06)";
+    // warmer terrain palette (Alt01-inspired)
+    const light = "#efe7db";
+    const dark = "#e7dfd3";
+    const fill = (x + y) % 2 === 0 ? light : dark;
+    const edge = "rgba(0,0,0,0.04)";
 
     this.isoDiamond(ctx, p.x, p.y, tw, th, fill, edge);
 
@@ -329,6 +330,11 @@ export class IsoRenderer {
     const tw = CONFIG.tileW * this.camera.zoom;
     const th = CONFIG.tileH * this.camera.zoom;
 
+    if (b.type === "park") {
+      this.drawParkTile(p.x, p.y, tw, th, b.active);
+      return;
+    }
+
     // determine "height" by type
     const h =
       b.type === "house"
@@ -461,6 +467,44 @@ export class IsoRenderer {
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
     ctx.stroke();
+  }
+
+  drawParkTile(cx, cy, tw, th, active) {
+    const ctx = this.ctx;
+    const grass = active ? "#bfe6b5" : "#a7c8a2";
+    const edge = "rgba(0,0,0,0.06)";
+    const s = 0.92;
+    this.isoDiamond(ctx, cx, cy, tw * s, th * s, grass, edge);
+
+    // soft shadow for trees
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.beginPath();
+    ctx.ellipse(cx - tw * 0.14, cy + th * 0.08, tw * 0.09, th * 0.05, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + tw * 0.12, cy + th * 0.06, tw * 0.09, th * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // trunks
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#7a5a3a";
+    ctx.fillRect(cx - tw * 0.16, cy + th * 0.02, tw * 0.02, th * 0.10);
+    ctx.fillRect(cx + tw * 0.10, cy + th * 0.00, tw * 0.02, th * 0.10);
+
+    // foliage
+    ctx.fillStyle = active ? "#6fbf62" : "#5fae57";
+    ctx.beginPath();
+    ctx.ellipse(cx - tw * 0.15, cy - th * 0.06, tw * 0.10, th * 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + tw * 0.11, cy - th * 0.07, tw * 0.10, th * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.beginPath();
+    ctx.ellipse(cx - tw * 0.18, cy - th * 0.10, tw * 0.04, th * 0.05, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + tw * 0.08, cy - th * 0.11, tw * 0.04, th * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   isoPrism(ctx, cx, cy, tw, th, heightPx, colors, active) {
