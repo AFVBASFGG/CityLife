@@ -7,6 +7,8 @@ export class IsoRenderer {
     this.ctx = canvas.getContext("2d");
     this.state = state;
     this.iconCache = new Map();
+    this.spriteCache = new Map();
+    this.tintedSpriteCache = new Map();
 
     this.camera = {
       x: 0,
@@ -330,6 +332,13 @@ export class IsoRenderer {
     const tw = CONFIG.tileW * this.camera.zoom;
     const th = CONFIG.tileH * this.camera.zoom;
 
+    const spriteSpec = this.getBuildingSpriteSpec(b.type);
+    if (spriteSpec) {
+      const tintColor = this.state.getBuildingColors(b.type)?.top || "#ffffff";
+      const drew = this.drawBuildingSprite(spriteSpec, p.x, p.y, tw, th, b.active, tintColor);
+      if (drew) return;
+    }
+
     if (b.type === "park") {
       this.drawParkTile(p.x, p.y, tw, th, b.active);
       return;
@@ -356,6 +365,31 @@ export class IsoRenderer {
     const colors = this.state.getBuildingColors(b.type);
     const active = b.active;
 
+    if (b.type === "house") {
+      this.drawHouseSolid(p.x, p.y, tw, th, h * th * 1.85, colors, active);
+      return;
+    }
+    if (b.type === "school") {
+      this.drawSchoolSolid(p.x, p.y, tw, th, h * th * 1.85, colors, active);
+      return;
+    }
+    if (b.type === "office") {
+      this.drawOfficeSolid(p.x, p.y, tw, th, h * th * 1.85, colors, active);
+      return;
+    }
+    if (b.type === "factory") {
+      this.drawFactorySolid(p.x, p.y, tw, th, h * th * 1.85, colors, active);
+      return;
+    }
+    if (b.type === "hospital") {
+      this.drawHospitalSolid(p.x, p.y, tw, th, h * th * 1.85, colors, active);
+      return;
+    }
+    if (b.type === "mall") {
+      this.drawMallSolid(p.x, p.y, tw, th, h * th * 1.85, colors, active);
+      return;
+    }
+
     // soft shadow
     ctx.save();
     ctx.globalAlpha = active ? 0.32 : 0.2;
@@ -365,38 +399,9 @@ export class IsoRenderer {
     ctx.fill();
     ctx.restore();
 
-    // isometric prism
-    this.isoPrism(ctx, p.x, p.y, tw, th, h * th * 1.85, colors, active);
-
-    // top icon (SVG)
-    const iconSize = Math.max(18, Math.floor(22 * this.camera.zoom));
-    try {
-      const iconImg = this.getIconImage(b.type, colors.top, active);
-      const ix = p.x - iconSize / 2;
-      const iy = p.y - h * th * 1.05 - iconSize / 2;
-      if (iconImg && iconImg.complete) {
-        ctx.save();
-        ctx.globalAlpha = active ? 0.95 : 0.55;
-        ctx.drawImage(iconImg, ix, iy, iconSize, iconSize);
-        ctx.restore();
-      } else {
-        ctx.save();
-        ctx.globalAlpha = active ? 0.6 : 0.35;
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.beginPath();
-        ctx.arc(p.x, p.y - h * th * 1.05, iconSize * 0.22, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    } catch {
-      ctx.save();
-      ctx.globalAlpha = active ? 0.6 : 0.35;
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - h * th * 1.05, iconSize * 0.22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    // isometric prism (fallback)
+    const heightPx = h * th * 1.85;
+    this.isoPrism(ctx, p.x, p.y, tw, th, heightPx, colors, active);
 
     // inactive indicator
     if (!active) {
@@ -481,29 +486,360 @@ export class IsoRenderer {
     ctx.globalAlpha = 0.25;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.beginPath();
-    ctx.ellipse(cx - tw * 0.14, cy + th * 0.08, tw * 0.09, th * 0.05, 0, 0, Math.PI * 2);
-    ctx.ellipse(cx + tw * 0.12, cy + th * 0.06, tw * 0.09, th * 0.05, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx - tw * 0.18, cy + th * 0.12, tw * 0.14, th * 0.07, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + tw * 0.16, cy + th * 0.10, tw * 0.14, th * 0.07, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // trunks
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#7a5a3a";
-    ctx.fillRect(cx - tw * 0.16, cy + th * 0.02, tw * 0.02, th * 0.10);
-    ctx.fillRect(cx + tw * 0.10, cy + th * 0.00, tw * 0.02, th * 0.10);
+    ctx.fillRect(cx - tw * 0.20, cy + th * 0.00, tw * 0.04, th * 0.18);
+    ctx.fillRect(cx + tw * 0.14, cy - th * 0.02, tw * 0.04, th * 0.18);
 
     // foliage
     ctx.fillStyle = active ? "#6fbf62" : "#5fae57";
     ctx.beginPath();
-    ctx.ellipse(cx - tw * 0.15, cy - th * 0.06, tw * 0.10, th * 0.12, 0, 0, Math.PI * 2);
-    ctx.ellipse(cx + tw * 0.11, cy - th * 0.07, tw * 0.10, th * 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx - tw * 0.19, cy - th * 0.10, tw * 0.18, th * 0.20, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + tw * 0.15, cy - th * 0.11, tw * 0.18, th * 0.20, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx - tw * 0.01, cy - th * 0.14, tw * 0.10, th * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.globalAlpha = 0.25;
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     ctx.beginPath();
-    ctx.ellipse(cx - tw * 0.18, cy - th * 0.10, tw * 0.04, th * 0.05, 0, 0, Math.PI * 2);
-    ctx.ellipse(cx + tw * 0.08, cy - th * 0.11, tw * 0.04, th * 0.05, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx - tw * 0.22, cy - th * 0.14, tw * 0.07, th * 0.07, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + tw * 0.12, cy - th * 0.15, tw * 0.07, th * 0.07, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  getBuildingSpriteSpec(type) {
+    const sprites = CONFIG.buildingSprites;
+    if (!sprites) return null;
+    const spec = sprites[type];
+    if (!spec) return null;
+    if (typeof spec === "string") return { src: spec };
+    return spec;
+  }
+
+  getSpriteImage(src) {
+    if (!src) return null;
+    if (this.spriteCache.has(src)) return this.spriteCache.get(src);
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
+    this.spriteCache.set(src, img);
+    return img;
+  }
+
+  getTintedSprite(img, tintColor, alpha = 0.35) {
+    const key = `${img.src}|${tintColor}|${alpha}`;
+    if (this.tintedSpriteCache.has(key)) return this.tintedSpriteCache.get(key);
+    if (!img.naturalWidth || !img.naturalHeight) return null;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = tintColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "source-over";
+    this.tintedSpriteCache.set(key, canvas);
+    return canvas;
+  }
+
+  drawBuildingSprite(spec, cx, cy, tw, th, active, tintColor) {
+    const ctx = this.ctx;
+    const img = this.getSpriteImage(spec.src);
+    if (!img || !img.complete) return false;
+    if (img.naturalWidth === 0 || img.naturalHeight === 0) return false;
+
+    const scale = (spec.scale ?? 1) * this.camera.zoom;
+    const xOffset = (spec.xOffset ?? 0) * this.camera.zoom;
+    const yOffset = (spec.yOffset ?? 0) * this.camera.zoom;
+
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    const x = cx - w / 2 + xOffset;
+    const y = cy - h + th * 0.20 + yOffset;
+
+    const useTint = spec.tint !== false;
+    const tintAlpha = spec.tintAlpha ?? 0.35;
+    const sprite = useTint ? this.getTintedSprite(img, tintColor, tintAlpha) : img;
+    if (!sprite) return false;
+
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.85;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sprite, x, y, w, h);
+    ctx.restore();
+    return true;
+  }
+
+
+  drawHouseSolid(cx, cy, tw, th, heightPx, colors, active) {
+    const ctx = this.ctx;
+    const baseH = heightPx * 0.7;
+    const roofH = heightPx * 0.35;
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.8;
+    this.isoPrism(ctx, cx, cy, tw * 0.86, th * 0.82, baseH, colors, active);
+    // porch block
+    this.isoPrism(ctx, cx - tw * 0.16, cy + th * 0.12, tw * 0.34, th * 0.26, baseH * 0.35, colors, active);
+    // roof block
+    this.isoPrism(ctx, cx, cy - th * 0.10, tw * 0.76, th * 0.70, roofH, {
+      top: colors.top,
+      left: colors.left,
+      right: colors.right,
+      front: colors.front,
+      edge: colors.edge,
+    }, active);
+    // chimney
+    this.isoPrism(ctx, cx + tw * 0.16, cy - th * 0.18, tw * 0.18, th * 0.18, roofH * 0.7, colors, active);
+    ctx.restore();
+  }
+
+  drawSchoolSolid(cx, cy, tw, th, heightPx, colors, active) {
+    const ctx = this.ctx;
+    const baseH = heightPx * 0.75;
+    const roofH = heightPx * 0.35;
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.8;
+    // main hall
+    this.isoPrism(ctx, cx, cy, tw * 1.05, th * 0.90, baseH, colors, active);
+    // roof block
+    this.isoPrism(ctx, cx, cy - th * 0.14, tw * 0.90, th * 0.66, roofH, colors, active);
+    // left wing
+    this.isoPrism(ctx, cx - tw * 0.36, cy + th * 0.08, tw * 0.55, th * 0.45, baseH * 0.55, colors, active);
+    // right wing
+    this.isoPrism(ctx, cx + tw * 0.36, cy + th * 0.08, tw * 0.55, th * 0.45, baseH * 0.55, colors, active);
+    // bell tower
+    this.isoPrism(ctx, cx - tw * 0.18, cy - th * 0.20, tw * 0.30, th * 0.30, roofH * 1.0, colors, active);
+    // flag (solid)
+    ctx.fillStyle = colors.top;
+    ctx.fillRect(cx - tw * 0.30, cy - heightPx * 1.05, tw * 0.18, th * 0.08);
+    ctx.restore();
+  }
+
+  drawOfficeSolid(cx, cy, tw, th, heightPx, colors, active) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.8;
+    // main tower
+    this.isoPrism(ctx, cx, cy, tw * 0.80, th * 0.78, heightPx * 1.25, colors, active);
+    // mid setback
+    this.isoPrism(ctx, cx - tw * 0.02, cy - th * 0.06, tw * 0.64, th * 0.62, heightPx * 0.7, colors, active);
+    // side wing
+    this.isoPrism(ctx, cx - tw * 0.28, cy + th * 0.08, tw * 0.62, th * 0.52, heightPx * 0.55, colors, active);
+    // roof cap
+    this.isoPrism(ctx, cx + tw * 0.04, cy - th * 0.22, tw * 0.34, th * 0.34, heightPx * 0.25, colors, active);
+    ctx.restore();
+  }
+
+  drawFactorySolid(cx, cy, tw, th, heightPx, colors, active) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.8;
+    // low wide base
+    this.isoPrism(ctx, cx, cy, tw * 1.12, th * 0.82, heightPx * 0.6, colors, active);
+    // warehouse wing
+    this.isoPrism(ctx, cx - tw * 0.36, cy + th * 0.10, tw * 0.72, th * 0.46, heightPx * 0.35, colors, active);
+    // sawtooth roof blocks
+    for (let i = -2; i <= 2; i++) {
+      this.isoPrism(ctx, cx + tw * 0.14 * i, cy - th * 0.12, tw * 0.30, th * 0.30, heightPx * 0.26, colors, active);
+    }
+    // smokestacks
+    this.isoPrism(ctx, cx + tw * 0.30, cy - th * 0.14, tw * 0.24, th * 0.24, heightPx * 1.0, colors, active);
+    this.isoPrism(ctx, cx + tw * 0.08, cy - th * 0.12, tw * 0.22, th * 0.22, heightPx * 0.8, colors, active);
+    ctx.restore();
+  }
+
+  drawHospitalSolid(cx, cy, tw, th, heightPx, colors, active) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.8;
+    // base block
+    this.isoPrism(ctx, cx, cy, tw * 0.95, th * 0.85, heightPx * 0.65, colors, active);
+    // left wing
+    this.isoPrism(ctx, cx - tw * 0.34, cy + th * 0.08, tw * 0.60, th * 0.45, heightPx * 0.5, colors, active);
+    // right wing
+    this.isoPrism(ctx, cx + tw * 0.34, cy + th * 0.08, tw * 0.60, th * 0.45, heightPx * 0.5, colors, active);
+    // center tower
+    this.isoPrism(ctx, cx, cy - th * 0.14, tw * 0.58, th * 0.58, heightPx * 0.75, colors, active);
+    // cross (solid)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(cx - tw * 0.06, cy - heightPx * 1.05, tw * 0.12, th * 0.30);
+    ctx.fillRect(cx - tw * 0.18, cy - heightPx * 0.95, tw * 0.36, th * 0.12);
+    ctx.restore();
+  }
+
+  drawMallSolid(cx, cy, tw, th, heightPx, colors, active) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = active ? 1 : 0.8;
+    // low wide base
+    this.isoPrism(ctx, cx, cy, tw * 1.18, th * 0.84, heightPx * 0.45, colors, active);
+    // atrium block
+    this.isoPrism(ctx, cx + tw * 0.10, cy - th * 0.06, tw * 0.70, th * 0.52, heightPx * 0.55, colors, active);
+    // front canopy
+    this.isoPrism(ctx, cx, cy + th * 0.10, tw * 1.04, th * 0.30, heightPx * 0.18, colors, active);
+    ctx.restore();
+  }
+
+  drawBuildingAccent(ctx, b, cx, cy, tw, th, heightPx, colors, active) {
+    const topY = cy - heightPx;
+    ctx.save();
+    ctx.globalAlpha = active ? 0.95 : 0.6;
+
+    const softStroke = active ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.35)";
+
+    // glossy top plate to make roofs read more clearly
+    ctx.save();
+    ctx.globalAlpha = active ? 0.45 : 0.25;
+    this.isoDiamond(ctx, cx, topY + th * 0.06, tw * 0.62, th * 0.62, "rgba(255,255,255,0.22)", "rgba(255,255,255,0.28)");
+    ctx.restore();
+
+    if (b.type === "factory") {
+      // twin smokestacks + sawtooth roof + faint smoke
+      ctx.fillStyle = colors.right;
+      ctx.fillRect(cx + tw * 0.08, topY - th * 0.16, tw * 0.13, th * 0.42);
+      ctx.fillRect(cx - tw * 0.05, topY - th * 0.12, tw * 0.11, th * 0.34);
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillRect(cx + tw * 0.08, topY - th * 0.16, tw * 0.13, th * 0.05);
+      ctx.fillRect(cx - tw * 0.05, topY - th * 0.12, tw * 0.11, th * 0.04);
+
+      ctx.strokeStyle = softStroke;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.18, topY + th * 0.02);
+      ctx.lineTo(cx - tw * 0.08, topY - th * 0.04);
+      ctx.lineTo(cx + tw * 0.02, topY + th * 0.02);
+      ctx.lineTo(cx + tw * 0.12, topY - th * 0.04);
+      ctx.lineTo(cx + tw * 0.22, topY + th * 0.02);
+      ctx.stroke();
+
+      ctx.globalAlpha *= 0.7;
+      ctx.fillStyle = "rgba(40,50,70,0.25)";
+      ctx.fillRect(cx - tw * 0.18, topY + th * 0.16, tw * 0.36, th * 0.08);
+      ctx.globalAlpha *= 0.6;
+      ctx.fillStyle = "rgba(210,220,235,0.55)";
+      ctx.beginPath();
+      ctx.ellipse(cx + tw * 0.16, topY - th * 0.26, tw * 0.12, th * 0.08, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + tw * 0.22, topY - th * 0.36, tw * 0.14, th * 0.10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = active ? 0.95 : 0.6;
+    }
+
+    if (b.type === "school") {
+      // gable roof + flag
+      ctx.strokeStyle = colors.edge;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.14, topY - th * 0.05);
+      ctx.lineTo(cx, topY - th * 0.18);
+      ctx.lineTo(cx + tw * 0.14, topY - th * 0.05);
+      ctx.stroke();
+      ctx.fillStyle = colors.top;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.14, topY - th * 0.05);
+      ctx.lineTo(cx, topY - th * 0.18);
+      ctx.lineTo(cx + tw * 0.14, topY - th * 0.05);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = colors.edge;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.20, topY - th * 0.02);
+      ctx.lineTo(cx - tw * 0.20, topY - th * 0.20);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.fillRect(cx - tw * 0.20, topY - th * 0.20, tw * 0.10, th * 0.05);
+
+      // front door + windows
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fillRect(cx - tw * 0.05, topY + th * 0.18, tw * 0.10, th * 0.18);
+      ctx.fillStyle = "rgba(255,255,255,0.28)";
+      for (let i = -2; i <= 2; i++) {
+        if (i === 0) continue;
+        ctx.fillRect(cx + tw * 0.06 * i, topY + th * 0.12, tw * 0.04, th * 0.06);
+      }
+    }
+
+    if (b.type === "hospital") {
+      // roof cross
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillRect(cx - tw * 0.05, topY - th * 0.14, tw * 0.10, th * 0.28);
+      ctx.fillRect(cx - tw * 0.14, topY - th * 0.05, tw * 0.28, th * 0.10);
+      ctx.globalAlpha *= 0.5;
+      ctx.strokeStyle = "rgba(140,220,255,0.65)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - tw * 0.06, topY - th * 0.16, tw * 0.12, th * 0.32);
+      ctx.globalAlpha = active ? 0.95 : 0.6;
+    }
+
+    if (b.type === "mall") {
+      // awning band + stripes
+      ctx.fillStyle = "rgba(255,255,255,0.25)";
+      ctx.fillRect(cx - tw * 0.20, topY - th * 0.04, tw * 0.40, th * 0.12);
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      for (let i = -4; i <= 4; i++) {
+        ctx.fillRect(cx + tw * 0.02 * i, topY - th * 0.04, tw * 0.012, th * 0.10);
+      }
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fillRect(cx - tw * 0.12, topY + th * 0.14, tw * 0.24, th * 0.08);
+    }
+
+    if (b.type === "office") {
+      // antenna + window strip
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + tw * 0.12, topY - th * 0.02);
+      ctx.lineTo(cx + tw * 0.12, topY - th * 0.24);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx + tw * 0.12, topY - th * 0.26, tw * 0.018, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.38)";
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(cx - tw * 0.09, topY + th * (0.02 + i * 0.10), tw * 0.18, th * 0.05);
+      }
+      ctx.globalAlpha *= 0.7;
+      ctx.strokeStyle = softStroke;
+      ctx.beginPath();
+      ctx.moveTo(cx + tw * 0.02, topY + th * 0.02);
+      ctx.lineTo(cx + tw * 0.18, topY + th * 0.10);
+      ctx.stroke();
+      ctx.globalAlpha = active ? 0.95 : 0.6;
+    }
+
+    if (b.type === "house") {
+      // gable ridge + small chimney
+      ctx.strokeStyle = colors.edge;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.12, topY - th * 0.02);
+      ctx.lineTo(cx + tw * 0.12, topY - th * 0.02);
+      ctx.stroke();
+      ctx.fillStyle = colors.right;
+      ctx.fillRect(cx + tw * 0.06, topY - th * 0.16, tw * 0.05, th * 0.12);
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.fillRect(cx - tw * 0.08, topY + th * 0.18, tw * 0.06, th * 0.08);
+      ctx.fillRect(cx + tw * 0.02, topY + th * 0.18, tw * 0.06, th * 0.08);
+    }
+
+    if (b.type === "factory" || b.type === "school" || b.type === "mall" || b.type === "office") {
+      ctx.globalAlpha *= 0.65;
+      ctx.strokeStyle = softStroke;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw * 0.18, topY + th * 0.02);
+      ctx.lineTo(cx + tw * 0.18, topY + th * 0.02);
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 

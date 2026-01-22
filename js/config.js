@@ -19,4 +19,14 @@ export const CONFIG = {
 
   // Aesthetic: rotation steps
   rotations: [0, 1, 2, 3], // 0..3 = 0/90/180/270
+
+  // OBJ sprite overrides (generated in assets/obj-sprites)
+  buildingSprites: {
+    house: { src: "assets/glb-sprites/house.png", scale: 0.6, xOffset: 0, yOffset: -2, tint: false },
+    school: { src: "assets/glb-sprites/university.png", scale: 0.62, xOffset: 0, yOffset: -4, tint: false },
+    office: { src: "assets/glb-sprites/office.png", scale: 0.65, xOffset: 0, yOffset: -6, tint: false },
+    factory: { src: "assets/glb-sprites/factory.png", scale: 0.62, xOffset: 0, yOffset: -4, tint: false },
+    hospital: { src: "assets/glb-sprites/hospital.png", scale: 0.62, xOffset: 0, yOffset: -4, tint: false },
+    mall: { src: "assets/glb-sprites/mall.png", scale: 0.62, xOffset: 0, yOffset: -4, tint: false },
+  },
 };

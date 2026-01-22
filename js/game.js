@@ -47,13 +47,13 @@ class GameState {
     getBuildingColors(type) {
         // tuned for isometric shading
         const palette = {
-            house: { top: "rgba(120,166,255,0.95)", left: "rgba(70,110,200,0.92)", right: "rgba(100,150,240,0.92)", front: "rgba(88,130,225,0.92)", edge: "rgba(255,255,255,0.14)" },
-            school: { top: "rgba(202,166,255,0.95)", left: "rgba(130,95,210,0.92)", right: "rgba(170,135,240,0.92)", front: "rgba(155,120,232,0.92)", edge: "rgba(255,255,255,0.14)" },
-            office: { top: "rgba(108,255,196,0.92)", left: "rgba(45,190,140,0.92)", right: "rgba(75,230,170,0.92)", front: "rgba(60,210,155,0.92)", edge: "rgba(255,255,255,0.14)" },
-            factory: { top: "rgba(255,125,139,0.92)", left: "rgba(200,70,90,0.92)", right: "rgba(235,100,120,0.92)", front: "rgba(220,85,105,0.92)", edge: "rgba(255,255,255,0.14)" },
-            hospital: { top: "rgba(139,243,255,0.92)", left: "rgba(60,170,185,0.92)", right: "rgba(105,215,230,0.92)", front: "rgba(85,200,215,0.92)", edge: "rgba(255,255,255,0.14)" },
-            mall: { top: "rgba(255,211,106,0.92)", left: "rgba(190,140,60,0.92)", right: "rgba(235,185,85,0.92)", front: "rgba(220,168,75,0.92)", edge: "rgba(255,255,255,0.14)" },
-            park: { top: "rgba(103,255,160,0.90)", left: "rgba(45,200,110,0.90)", right: "rgba(75,235,135,0.90)", front: "rgba(60,220,123,0.90)", edge: "rgba(255,255,255,0.14)" },
+            house: { top: "#9db7ff", left: "#5a7dd2", right: "#7ea1ee", front: "#6c8ce0", edge: "rgba(0,0,0,0.25)" },
+            school: { top: "#d5b2ff", left: "#9463d8", right: "#b58af2", front: "#a778ea", edge: "rgba(0,0,0,0.25)" },
+            office: { top: "#8bffd2", left: "#38c38f", right: "#64e8b1", front: "#50dca5", edge: "rgba(0,0,0,0.25)" },
+            factory: { top: "#ff9aaa", left: "#cf5a70", right: "#e77a90", front: "#db6b82", edge: "rgba(0,0,0,0.25)" },
+            hospital: { top: "#9feeff", left: "#4fb7c9", right: "#7ad6e6", front: "#67c9dc", edge: "rgba(0,0,0,0.25)" },
+            mall: { top: "#ffd27a", left: "#c8943d", right: "#e9b85f", front: "#dca650", edge: "rgba(0,0,0,0.25)" },
+            park: { top: "#8deba7", left: "#3fbf6a", right: "#69df8a", front: "#55d17b", edge: "rgba(0,0,0,0.25)" },
         };
         return palette[type] ?? palette.house;
     }
